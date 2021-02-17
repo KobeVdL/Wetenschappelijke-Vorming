@@ -4,6 +4,10 @@ import System.Random
 import Data.Array.IO
 import Control.Monad
 
+import Data.Array.ST
+import Control.Monad.ST
+import Data.STRef
+
 -- | Randomly shuffle a list
 --   /O(N)/
 -- code gehaald van https://wiki.haskell.org/Random_shuffle
@@ -22,3 +26,19 @@ shuffle xs = do
     n = length xs
     newArray :: Int -> [a] -> IO (IOArray Int a)
     newArray n xs =  newListArray (1,n) xs
+ 
+splitNumber :: Int -> Int -> IO [Int]
+
+splitNumber n 0 = do
+    return []
+    
+splitNumber n 1 = do 
+    return [n]
+
+splitNumber n size = do
+    n1 <- randomRIO (0,n)
+    rest <- splitNumber (n-n1) (size-1)
+    return (n1 : rest)
+    
+
+

@@ -57,7 +57,7 @@ termValuesEqual (x:xs) (y:ys) = (x == y) && termValuesEqual xs ys
 --Elke buitenste is een predikaat deze bevat termen als argumenten
 data Predicate = MkPredicate {
                     nameOfPred :: String ,
-                    kardinaliteitOfPred :: Integer ,
+                    kardinaliteitOfPred :: Int ,
                     valuesOfPred :: [Term] }
     
 instance Eq Predicate  where 
@@ -296,7 +296,7 @@ changeVariableInPredicate (MkPredicate name kard termList) var replacingTerm = M
 
 changeVariableInPredicateList :: [Predicate] -> Term -> Term -> [Predicate]
 
-changeVariableInPredicateList [] var bindingTerm = []
+--changeVariableInPredicateList [] var bindingTerm = []
 
 changeVariableInPredicateList list var bindingTerm = map (\y -> changeVariableInPredicate y var bindingTerm) list--changeVariableInPredicate y var bindingTerm : changeVariableInPredicateList ys var bindingTerm
 
@@ -331,7 +331,7 @@ fireAllRules (MkProgram []) oldScheme differenceScheme = []
 
 fireAllRules (MkProgram (firstClause:restOfClauses)) oldScheme differenceScheme = 
      findNewPred firstClause oldScheme differenceScheme ++ fireAllRules (MkProgram restOfClauses) oldScheme differenceScheme
-
+ 
  
 unionScheme :: Scheme -> Scheme -> Scheme
 
@@ -349,116 +349,6 @@ createFacts :: [Predicate] -> [Clause]
 createFacts [] = []
 
 createFacts (x:xs) = (Rule x []) : createFacts xs
-
-
-
-
---Step gaat een vereenvoudigingstap uitvoeren op de term, indien dit niet gaat geeft hij Nothing terug
-step :: String-> Term-> Maybe Term
-
-step "True" _ = Nothing
-
-step "False" _ = Nothing
-
-step "Zero" _ = Nothing
-
-step "ifThenElse" term  
-    | condition == "True" = Just t2
-    | condition == "False" = Just t3
-    | otherwise =do
-        t1'<- step (name t1) t1
-        return (MkTerm "ifThenElse" 3 (t1' : rest))
-    where
-    (t1:t2:t3:[]) = values term
-    rest =[t2,t3]
-    condition= name t1
-    
-step "succ" term = do
-    t' <- step (name t) t
-    return (MkTerm "succ" 1 [t'])
-    where
-    t = head (values term)
-    
-step "leq" term 
-    | not (normalForm t1) = do
-        t1'<-(step (name t1) t1)
-        return (MkTerm "leq" 3 (t1': [t2]))
-    | not (normalForm t2) =do
-        t2'<-(step (name t2) t2)
-        return (MkTerm "leq" 3 (t1:t2': []))
-    | not (nv (name t1) t1) && not (nv (name t1) t1) = Nothing
-    | (name t1 == "Zero") = Just (MkTerm "True" 0 [])
-    | (name t2 == "Zero") = Just (MkTerm "False" 0 [])
-    | (name t1 == "succ") && (name t2 == "succ") = step "leq" (MkTerm "leq" 2 [head (values t1),head (values t2)])
-    | otherwise = Nothing
-     where
-    (t1:t2:[]) = values term
-    
-step _ _ = Nothing
-    
-normalForm :: Term -> Bool
-   
-normalForm term = (Nothing == (step (name term) term))
-
-
-
-value :: String -> Term -> Bool
-
-value "True" _ = True
-
-value "False" _ = True
-
-value "Zero" _ = True
-
-value "succ" term = nv (name t) t
-    where
-    t = head (values term)
-
-value _ _ = False
-
-nv :: String -> Term -> Bool
-
-nv "Zero" _ = True
-
-nv "succ" term = nv (name t) t
-    where
-    t = head (values term)
-    
-nv _ _ = False
-
-
-eval :: Term -> Term
-
-eval t = case t' of
-        Just t'-> eval t'
-        Nothing -> t
-    where
-    t'=step (name t) t
-
--- Eerste property eval term => value
-property1 :: Term -> Bool
-
-property1 term = value (name t) t
-    where
-    t = eval term
-
---tweede property ofwel vereenvoudiging mogelijk ofwel value
-property2 :: Term -> Bool
-
-property2 term = case t of
-        Just t' -> True
-        Nothing -> value (name term) term
-    where
-    t= step (name term) term
-    
---De 3de property zegt dat na de vereenvoudigen moet de term nog steeds aan hastype voldoen    
-property3 :: Predicate -> Set [Term] -> Bool
-
-property3 (MkPredicate "hasType" 2 [term,typeOfTerm]) scheme = Set.member [t,typeOfTerm] scheme 
-    where
-    t = eval term
-    
-
 
 
 
