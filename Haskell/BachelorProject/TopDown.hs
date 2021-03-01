@@ -226,9 +226,9 @@ topDownAlgorithm startPred n rules func index =do
     case allBinders of
         Nothing -> return Nothing
         Just listBinders->do
-            return (Just (foldl (\acc x -> applyBinder acc x) startPred listBinders))
+            return (Just (foldl (\acc x -> applyBinder acc x) startPred listBinders)) -- give binded result back
   
-
+-- For each predicate in the list search a valid binder for it
 topDownLoop:: [(Predicate,Int)] -> ([Clause],[Clause])-> ([a] -> [a] -> [a]) -> Int -> IO (Maybe [Binder])
 
 topDownLoop [] program _ _= return (Just [])
@@ -278,10 +278,8 @@ stepRule (pred,n) rest (const,rules) index = do
     case foundBindRule of 
         Nothing -> return Nothing
         Just (rule,rest) ->
-            do --Moet variabele nog hernoemen
+            do 
                let (editedRule,newIndex) = renameVariableClause rule index
-               --putStrLn ("rule is " ++ show editedRule)
-               --putStrLn ("pred is " ++ show pred)
                let  Just bind = findBinderPred pred (headTerm editedRule) --altijd voldaan door findBindingRule
                return (Just (((applyBinder (body editedRule) bind)),bind,
                 (const,rest),newIndex))

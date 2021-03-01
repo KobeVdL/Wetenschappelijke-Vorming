@@ -17,7 +17,7 @@ data Kardinaliteit = Integer deriving (Eq, Show)
 
 data Term = MkTerm { 
             name :: String ,
-            kardinaliteit :: Integer ,
+            kardinaliteit :: Int ,
             values :: [Term]
             }
             | 
@@ -140,7 +140,7 @@ findNewPred (Rule x [y]) oldScheme differenceScheme =  case z of
 -- We gebruiken het principe van een binonium van Newton we geven een lijst van [0,1] mee
 -- Indien een 0 dan neem je een element uit je oude lijst en ga je recursief verder
 -- Indien een 1 dan neem je een element uit je nieuwe lijst  en dan ga je de rest van je elementen uit de totale lijst halen
-findNewPred (Rule x (y:ys)) oldScheme differenceScheme =
+findNewPred (Rule x (y:ys)) oldScheme differenceScheme = 
     (foldl (\acc f -> ( f (Rule x (y:ys)) oldScheme differenceScheme) ++   acc) [] [newPredChoosingOld,newPredChoosingNew])
 
 -- Neem de termen van een predikaat uit een oude scheme
@@ -181,16 +181,16 @@ findNewPredUseAll :: Clause -> Scheme -> [Predicate]
 findNewPredUseAll (Rule x []) _ = [x]
 
 findNewPredUseAll (Rule x (y:ys)) scheme =  case z of
-    Just posValueOfy -> foldl (\acc a -> let --concatmap acc niet meer doorgeven
+    Just posValueOfy -> Set.foldl (\acc a -> let --concatmap acc niet meer doorgeven
         binder = findBinderArguments (valuesOfPred y) a in
         (case binder of
         Just bind -> findNewPredUseAll newRule scheme ++ acc
             where
             newRule =  bindRule (Rule x ys) bind 
-        Nothing -> acc)) [] posValueOfy
+        Nothing ->  acc)) [] posValueOfy
     Nothing -> []
     where
-    z =  getSchemeValues (nameOfPred y) scheme
+    z = getSchemeValues (nameOfPred y) scheme
     
     
 chooseAllOrNewScheme :: Integer ->(Clause -> Scheme -> Scheme -> [Predicate])
@@ -329,8 +329,8 @@ fireAllRules :: Program -> Scheme -> Scheme -> [Predicate]
 
 fireAllRules (MkProgram []) oldScheme differenceScheme = []
 
-fireAllRules (MkProgram (firstClause:restOfClauses)) oldScheme differenceScheme = 
-     findNewPred firstClause oldScheme differenceScheme ++ fireAllRules (MkProgram restOfClauses) oldScheme differenceScheme
+fireAllRules (MkProgram (firstClause:restOfClauses)) oldScheme differenceScheme =  
+     (findNewPred firstClause oldScheme differenceScheme ++ fireAllRules (MkProgram restOfClauses) oldScheme differenceScheme)
  
  
 unionScheme :: Scheme -> Scheme -> Scheme
