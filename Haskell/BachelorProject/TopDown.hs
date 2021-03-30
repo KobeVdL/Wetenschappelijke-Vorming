@@ -6,7 +6,6 @@ import Data.Set (Set)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Debug.Trace
-import System.IO.Unsafe
 import System.Random
 import Control.Monad.Trans.Maybe
 
@@ -123,7 +122,7 @@ topDownAlgorithm startPred n rules func index =do
     case allBinders of
         Nothing -> return Nothing
         Just listBinders->do
-            return (Just (foldl (\acc x -> applyBinder acc x) startPred listBinders)) -- give binded result back
+            return (Just (foldl (\acc x -> bindValue acc x) startPred listBinders)) -- give binded result back
   
 -- For each predicate in the list search a valid binder for it
 topDownLoop:: [(Predicate,Int)] -> ([Clause],[Clause])-> ([a] -> [a] -> [a]) -> Int -> IO (Maybe [Binder])
@@ -166,11 +165,11 @@ stepRule (pred,0) rest (const,rules) index = do
         Nothing -> return Nothing
         Just (rule,rest) ->
             do --Moet variabele nog hernoemen
-               let (editedRule,newIndex) = renameVariableClause rule index
+               let (editedRule,newIndex) = rename rule index
                --putStrLn ("rule is " ++ show editedRule)
                --putStrLn ("pred is " ++ show pred)
-               let  Just bind = findBinderPred pred (headTerm editedRule) --altijd voldaan door findBindingRule
-               return (Just (((applyBinder (body editedRule) bind)),bind,
+               let  Just bind = findBinder pred (headTerm editedRule) --altijd voldaan door findBindingRule
+               return (Just (((bindValue (body editedRule) bind)),bind,
                 (rest,rules),newIndex))
                 
 stepRule (pred,n) rest (const,rules) index = do
@@ -180,9 +179,9 @@ stepRule (pred,n) rest (const,rules) index = do
         Nothing -> return Nothing
         Just (rule,rest) ->
             do 
-               let (editedRule,newIndex) = renameVariableClause rule index
-               let  Just bind = findBinderPred pred (headTerm editedRule) --altijd voldaan door findBindingRule
-               return (Just (((applyBinder (body editedRule) bind)),bind,
+               let (editedRule,newIndex) = rename rule index
+               let  Just bind = findBinder pred (headTerm editedRule) --altijd voldaan door findBindingRule
+               return (Just (((bindValue (body editedRule) bind)),bind,
                 (const,rest),newIndex))
 
 
@@ -191,7 +190,7 @@ stepRule (pred,n) rest (const,rules) index = do
 
 applyBinderSizeList :: [(Predicate,Int)] -> Binder -> [(Predicate,Int)]
 
-applyBinderSizeList list binder  = zip (applyBinder predList binder) sizeList
+applyBinderSizeList list binder  = zip (bindValue predList binder) sizeList
     where
     (predList,sizeList) = unzip list
     

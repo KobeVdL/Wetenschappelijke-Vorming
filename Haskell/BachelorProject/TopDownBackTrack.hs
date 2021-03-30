@@ -1,15 +1,16 @@
 module TopDownBackTrack where
 
 import BasicProlog
+import TopDown
 import Shuffle
+
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Debug.Trace
-import System.IO.Unsafe
 import System.Random
 import Control.Monad.Trans.Maybe
-import TopDown
+
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -24,7 +25,7 @@ topDownBacktrackAlgorithm startPred n rules func bStep index =do
         listOfListBinders->do
             return (foldr (\x acc -> (applyBinderList x):acc) [] listOfListBinders) -- give binded result back
     where
-        applyBinderList = foldl (\acc x -> applyBinder acc x) startPred -- apply the binders to the given predicate
+        applyBinderList = foldl (\acc x -> bindValue acc x) startPred -- apply the binders to the given predicate
 
 
 

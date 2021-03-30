@@ -11,9 +11,12 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
-data Kardinaliteit = Integer deriving (Eq, Show)
-
-
+class (Bindable a) where
+    bindValue :: a -> Binder -> a
+    changeVariable ::  Term -> Term -> a -> a
+    findBinder :: a -> a -> Maybe Binder
+    rename :: a -> Int -> (a,Int)
+    findVariables :: a -> Set Term
 
 data Term = MkTerm { 
             name :: String ,
@@ -39,15 +42,119 @@ data Clause = Rule
 
 
 instance Eq Term  where 
-   (==) (Variable x) (Variable y) = (x == y)
-   x == y = ((name x)==(name y)) && termValuesEqual (values x) (values y)
-
-
-instance Show Term  where
+    (==) (Variable x) (Variable y) = (x == y)
+    x == y = ((name x)==(name y)) && termValuesEqual (values x) (values y)
+    
+instance Show Term where
     show (Variable x) = x
     show (MkTerm nameT 0 _) = nameT
     show (MkTerm nameT n list) = nameT ++ "(" ++ showTermList list ++ ")"
     
+instance Bindable Term where
+    bindValue term binder = Map.foldrWithKey changeVariable term binder --changeVariable term (Variable x) bindingTerm 
+    
+    changeVariable  (Variable x) bindingTerm (MkTerm nameTerm kard argumentTerms) = MkTerm nameTerm kard (changeVariable (Variable x) bindingTerm argumentTerms)
+    changeVariable (Variable x) bindingTerm (Variable y) = 
+                if Variable x == Variable y then
+                     bindingTerm -- bij variabele vervang je deze
+                else
+                     Variable y
+    changeVariable _ bindingTerm termToChange = error "Expects a variable, not a term"
+                     
+    findBinder (Variable x) bindingTerm = Just (Map.singleton (Variable x) bindingTerm )
+    findBinder term (Variable y) = Just (Map.singleton (Variable y) term ) 
+    findBinder term bindingTerm 
+        | name term == name bindingTerm = findBinder (values term) (values bindingTerm)
+        | otherwise = Nothing
+        
+
+    rename term n = (newTerm, (Set.size set+n))
+        where
+        set = findVariables (term)
+        binder = renameBinder (Set.toList set) n
+        newTerm = bindValue term binder 
+        
+    findVariables (Variable x) = Set.singleton (Variable x)
+    findVariables (MkTerm nameTerm kard valueOfTerm) = findVariables valueOfTerm
+    
+    
+    
+instance Eq Predicate  where 
+   x == y = ((nameOfPred x)==(nameOfPred y)) && termValuesEqual (valuesOfPred x) (valuesOfPred y)   
+    
+    
+instance Show Predicate  where
+    show (MkPredicate nameP 0 _) = nameP
+    show (MkPredicate nameP n list) = nameP ++ "(" ++ showTermList list ++ ")"
+            {- 
+                A predicate has a name, a kardinality and a list of terms as arguments
+            -}
+            
+            
+    
+instance Bindable Predicate where    
+    
+    bindValue (MkPredicate name kard termList) binder = MkPredicate name kard (bindValue termList binder)
+
+    changeVariable var replacingTerm (MkPredicate name kard termList) = MkPredicate name kard (changeVariable var replacingTerm termList)
+
+    findBinder pred1 pred2 
+        | nameOfPred pred1 == nameOfPred pred2 = findBinder (valuesOfPred pred1) (valuesOfPred pred2)
+        | otherwise = Nothing
+        
+    rename (MkPredicate name kard termList) n = ((MkPredicate name kard renamedTerms),index + n)
+        where
+        (renamedTerms,index) = rename termList n
+        
+    findVariables (MkPredicate name kard termList) = findVariables termList
+  
+  
+  
+  
+instance Bindable Clause where
+    
+    bindValue rule binder = fst $ rename bindedRule  0 -- TODO 
+        where 
+        bindedRule = Map.foldrWithKey (changeVariable) rule binder
+    
+    changeVariable  var replacingTerm (Rule headRule body)= Rule (changeVariable var replacingTerm headRule) (changeVariable var replacingTerm body)
+
+    findBinder rule1 rule2 = Nothing -- Do not use findBinders on 2 rules
+
+
+    rename clause n = ((Rule x xs),newIndex)
+        where
+        ((x:xs),newIndex) = rename ((headTerm clause):body clause) n --add head of rule to body
+
+    
+    findVariables (Rule headRule body) = Set.union (findVariables headRule) (findVariables body)
+  
+    
+
+instance Bindable a => Bindable [a] where
+    
+    bindValue array binder = map (\x -> bindValue x binder) array
+    
+    changeVariable var replacingTerm array = map (changeVariable var replacingTerm) array
+
+    findBinder [] [] = Just Map.empty
+
+    findBinder _ [] = Nothing
+
+    findBinder [] _ = Nothing
+
+    findBinder(x:xs) (y:ys) = appendBinder z k
+        where
+        z = findBinder x y 
+        k = findBinder xs ys
+       
+    rename array n = (bindValue array binder,(Set.size varSet +n))
+        where
+        varSet = foldr (Set.union . findVariables) (Set.empty) (array)
+        binder  = renameBinder (Set.toList varSet) n
+        
+    findVariables = foldr (\x acc-> Set.union (findVariables x) acc ) Set.empty
+
     
 
 showTermList :: [Term] -> String
@@ -67,25 +174,13 @@ termValuesEqual [] [] = True
 termValuesEqual (x:xs) (y:ys) = (x == y) && termValuesEqual xs ys
 
     
-instance Eq Predicate  where 
-   x == y = ((nameOfPred x)==(nameOfPred y)) && termValuesEqual (valuesOfPred x) (valuesOfPred y)   
-    
-    
-instance Show Predicate  where
-    show (MkPredicate nameP 0 _) = nameP
-    show (MkPredicate nameP n list) = nameP ++ "(" ++ showTermList list ++ ")"
-            {- Een term bevat een 
-naam de kardinaliteit (of het aantal termen het bezit) en de bijhorende termen 
-Empty geeft een fout aan, of een valse staat.
--}
+
 
 type Binder = Map Term Term
 
 
 --data Value a = MkValue a deriving (Eq, Show)
 
-
-type Scheme = Map String (Set [Term])
 
 newtype Program = MkProgram [Clause]
 
@@ -110,159 +205,12 @@ appendProgram :: Program -> Program -> Program
 appendProgram (MkProgram p1) (MkProgram p2) = MkProgram (p1 ++ p2)
 
 
--- search in scheme for predicate with given name
-getSchemeValues ::  String -> Scheme -> Maybe (Set [Term])
 
-getSchemeValues = Map.lookup 
-
-
-findNewPred :: Clause -> Scheme -> Scheme -> [Predicate]
-
---Feiten worden toegevoegd als er geen nieuwe elementen zijn
-findNewPred (Rule x []) _ differenceScheme 
-    | Map.null differenceScheme = [x]
-    | otherwise = []
-
-
--- In het geval van een regel gebruik steeds minstens 1 van de nieuwe elementen
--- Hierdoor ga je geen elementen overlopen die je daarvoor ook al een keer hebt gevonden
-
---Bij de laatste predikaat ga je altijd een nieuw element gebruiken als daarvoor nog niet is gebeurd 
-findNewPred (Rule x [y]) oldScheme differenceScheme =  case z of
-    Just posValueOfy -> foldl (\acc a -> let --concatmap acc niet meer doorgeven
-         binder = findBinderArguments (valuesOfPred y) a in
-        (case binder of
-            Just bind -> pred : acc
-                where
-                (Rule pred _) = bindRule (Rule x []) bind
-            Nothing ->  acc)) [] posValueOfy
-    Nothing -> []
-    where
-    z = getSchemeValues (nameOfPred y) differenceScheme
-
--- We gebruiken het principe van een binonium van Newton we geven een lijst van [0,1] mee
--- Indien een 0 dan neem je een element uit je oude lijst en ga je recursief verder
--- Indien een 1 dan neem je een element uit je nieuwe lijst  en dan ga je de rest van je elementen uit de totale lijst halen
-findNewPred rule@(Rule x (y:ys)) oldScheme differenceScheme = 
-    (foldl (\acc f -> ( f rule oldScheme differenceScheme) ++   acc) [] [newPredChoosingOld,newPredChoosingNew])
-
--- Neem de termen van een predikaat uit een oude scheme
-newPredChoosingOld :: Clause -> Scheme -> Scheme -> [Predicate]
-
-newPredChoosingOld (Rule x (y:ys)) oldScheme differenceScheme = 
-    case z of
-    Just posValueOfy -> foldl (\acc a -> let --concatmap acc niet meer doorgeven
-        binder = findBinderArguments (valuesOfPred y) a in
-        (case binder of
-        Just bind -> findNewPred newRule oldScheme differenceScheme ++ acc
-            where
-            newRule =  bindRule (Rule x ys) bind 
-        Nothing -> acc)) [] posValueOfy
-    Nothing -> []
-    where
-    z =  getSchemeValues (nameOfPred y) oldScheme
-    
---Neem de termen van een predikaat uit een nieuwe scheme hierna zijn er geen restricties dat er minstens 1 nieuw moet zijn
-newPredChoosingNew :: Clause -> Scheme -> Scheme -> [Predicate]
-    
-newPredChoosingNew (Rule x (y:ys)) oldScheme differenceScheme = 
-    case z of
-    Just posValueOfy -> foldl (\acc a -> let --concatmap acc niet meer doorgeven
-         binder = findBinderArguments (valuesOfPred y) a in
-        (case binder of
-        Just bind -> findNewPredUseAll newRule (unionScheme oldScheme differenceScheme) ++ acc
-            where
-            newRule =  bindRule (Rule x ys) bind 
-        Nothing -> acc)) [] posValueOfy
-    Nothing -> []
-    where
-    z = getSchemeValues (nameOfPred y) differenceScheme
-  
---Neem de termen van een predikaat uit een oude of een nieuwe scheme    
-findNewPredUseAll :: Clause -> Scheme -> [Predicate]
-
-findNewPredUseAll (Rule x []) _ = [x]
-
-findNewPredUseAll (Rule x (y:ys)) scheme =  case z of
-    Just posValueOfy -> Set.foldl (\acc a -> let --concatmap acc niet meer doorgeven
-        binder = findBinderArguments (valuesOfPred y) a in
-        (case binder of
-        Just bind -> findNewPredUseAll newRule scheme ++ acc
-            where
-            newRule =  bindRule (Rule x ys) bind 
-        Nothing ->  acc)) [] posValueOfy
-    Nothing -> []
-    where
-    z = getSchemeValues (nameOfPred y) scheme
-    
-    
-chooseAllOrNewScheme :: Integer ->(Clause -> Scheme -> Scheme -> [Predicate])
-
-chooseAllOrNewScheme 0  = newPredChoosingOld 
-
-chooseAllOrNewScheme 1 = newPredChoosingNew 
-    
-    
 
     
 --Gegeven een binder pas deze toe op de regel.     
-
-bindRule :: Clause -> Binder  -> Clause
-
-bindRule cl bind = fst $ renameVariableClause bindedRule  0 -- TODO werkt dit nog met TOPDOWN?
-    where 
-    bindedRule = Map.foldrWithKey changeVariableOfRule  cl bind
-
-
-
-bindRuleList :: Binder -> [Clause] ->  [Clause]
-
-bindRuleList binder  = foldr (\x acc-> (bindRule x binder ):acc) [] 
-
- 
- 
---Zoek een binder voor de term indien ze verschillend zijn geef nothing terug
-findBinders :: Term -> Term -> Maybe Binder 
-
--- Hier gaat het fout omdat variabele niet worden hernoemd
-findBinders (Variable x) bindingTerm = Just (Map.singleton (Variable x) bindingTerm )
-
-findBinders term (Variable y) = Just (Map.singleton (Variable y) term ) 
-
-findBinders term bindingTerm 
-    | name term == name bindingTerm = findBinderArguments (values term) (values bindingTerm)
-    | otherwise = Nothing
-    
-    
-    
-findBinderArguments :: [Term] -> [Term] -> Maybe Binder 
-
-findBinderArguments [] [] = Just Map.empty
-
-findBinderArguments _ [] = Nothing
-
-findBinderArguments [] _ = Nothing
-
-findBinderArguments (x:xs) (y:ys) = appendBinder z k
-    where
-    z = findBinders x y 
-    k = findBinderArguments xs ys
-    
-    
     
 
-
-findBinderPred :: Predicate -> Predicate -> Maybe Binder
-
-findBinderPred pred1 pred2 
-    | nameOfPred pred1 == nameOfPred pred2 = findBinderArguments (valuesOfPred pred1) (valuesOfPred pred2)
-    | otherwise = Nothing
-
-
-
-
-
-    
 appendBinder :: Maybe Binder -> Maybe Binder -> Maybe Binder
 
 appendBinder binder1 binder2 = do 
@@ -275,129 +223,8 @@ addToBinder :: (Term,Term) -> Binder -> Binder
 
 addToBinder (Variable v,term) = Map.insert (Variable v) term
  
-    
-
--- zoek de scheme waar waarde moet toegevoegd worden
-addToCorrectScheme :: Predicate -> Scheme -> Scheme 
-
-addToCorrectScheme pred = Map.insertWith Set.union (nameOfPred pred) (Set.insert (valuesOfPred pred) Set.empty)
-
- 
-addListToCorrectScheme :: [Predicate] -> Scheme -> Scheme
-
-addListToCorrectScheme [] scheme = scheme
-
-addListToCorrectScheme (x:xs) scheme = addListToCorrectScheme xs z
-    where 
-    z =addToCorrectScheme x scheme
 
 
-
-changeVariableOfRule ::   Term -> Term -> Clause  -> Clause
-
-changeVariableOfRule (Variable x) bindingTerm  r  = Rule (changeVariableInPredicate (headTerm r) (Variable x) bindingTerm) (changeVariableInPredicateList (body r) (Variable x) bindingTerm)
-
-changeVariableOfRule _ bindingTerm r = error "Verwacht een Variabele geen term"
-
-
-
-changeVariableInPredicate :: Predicate -> Term -> Term -> Predicate
-
-changeVariableInPredicate (MkPredicate name kard termList) var replacingTerm = MkPredicate name kard (changeVariableTermList termList var replacingTerm)
-
-
-changeVariableInPredicateList :: [Predicate] -> Term -> Term -> [Predicate]
-
---changeVariableInPredicateList [] var bindingTerm = []
-
-changeVariableInPredicateList list var bindingTerm = map (\y -> changeVariableInPredicate y var bindingTerm) list--changeVariableInPredicate y var bindingTerm : changeVariableInPredicateList ys var bindingTerm
-
-
-changeVariable :: Term ->  Term -> Term -> Term
-
-changeVariable (Variable y) (Variable x) bindingTerm = 
-                if Variable x == Variable y then
-                     bindingTerm -- bij variabele vervang je deze
-                else
-                     Variable y
-
-changeVariable (MkTerm nameTerm kard valueOfTerm) (Variable x) bindingTerm = MkTerm nameTerm kard (changeVariableTermList valueOfTerm (Variable x) bindingTerm)
-    
-changeVariable termToChange _ bindingTerm = error "Verwacht een Variabele geen term"
-
-
-
-changeVariableTermList :: [Term] -> Term -> Term -> [Term]
-
-changeVariableTermList (y:ys) (Variable x) bindingTerm = changeVariable y (Variable x) bindingTerm : changeVariableTermList ys (Variable x) bindingTerm
-
-changeVariableTermList [] (Variable x) bindingTerm = []
-
-changeVariableTermList _ _ _ = error "Verwacht een Variabele geen term"
-
-
-
-fireAllRules :: Program -> Scheme -> Scheme -> [Predicate]
-
-fireAllRules (MkProgram []) oldScheme differenceScheme = []
-
-
-fireAllRules (MkProgram (firstClause:restOfClauses)) oldScheme differenceScheme =  
-     (newPreds ++ fireAllRules (MkProgram restOfClauses) oldScheme differenceScheme)
-     where 
-     newPreds= findNewPred firstClause oldScheme differenceScheme
-     predsEdited = (foldr (\x acc ->fst (renameVariablePred x 0) : acc) [] newPreds)
-
- 
- 
-unionScheme :: Scheme -> Scheme -> Scheme
-
-unionScheme = Map.unionWith Set.union
-
-
-maybeSetDif :: Set[Term] -> Set [Term] -> Maybe (Set [Term]) 
-
-maybeSetDif x y = Just $ Set.difference x y
-
-
-
-createFacts :: [Predicate] -> [Clause]
-
-createFacts [] = []
-
-createFacts (x:xs) = (Rule x []) : createFacts xs
-
-
-
-
-renameVariableClause :: Clause -> Int-> (Clause,Int)
-
-renameVariableClause clause n = (newClause,(Set.size varSet +n))
-    where
-    varSet = foldr (Set.union . findVariablesList . valuesOfPred) (Set.empty)((headTerm clause):body clause)
-    binder  = renameBinder (Set.toList varSet) n
-    [headRule] = applyBinder ([headTerm clause]) binder
-    newClause =Rule headRule (applyBinder (body clause) binder)
-
-
-renameVariablePred :: Predicate -> Int-> (Predicate,Int)
-
-renameVariablePred pred n = (newPred,(Set.size set+n))
-    where
-    set = findVariablesList (valuesOfPred pred)
-    binder  = renameBinder (Set.toList set) n
-    [newPred] = applyBinder [pred] binder 
-    
-    
-renameTerm :: Term -> Int -> (Term,Int)
-
-renameTerm term n = (newTerm, (Set.size set+n))
-    where
-    set = findVariable (term)
-    binder = renameBinder (Set.toList set) n
-    newTerm = applyBinderTerm term binder 
-    
-    
 
 renameBinder :: [Term] -> Int -> Binder
   
@@ -405,30 +232,6 @@ renameBinder [] _ = Map.empty
   
 renameBinder (x:xs) n = Map.union (Map.singleton x (Variable ("_" ++ show n))) (renameBinder xs (n+1))
 
- 
-applyBinder :: [Predicate] -> Binder -> [Predicate]
-
-applyBinder = Map.foldrWithKey (\t1 t2 predList -> changeVariableInPredicateList predList t1 t2) 
-
-
-applyBinderTerm :: Term -> Binder -> Term
-
-applyBinderTerm = Map.foldrWithKey (\t1 t2 predList -> changeVariable predList t1 t2) 
-
-
---Rename variable gaat eerst alle variabele zoeken die er in voorkomen en dan hernoemen naar _n
--- met n een nummer, we verwachten dat de gebruiker geen variabele ingeeft van deze vorm 
-findVariablesList :: [Term] -> Set Term
-
-findVariablesList  = foldr (\x acc-> Set.union (findVariable x) acc ) Set.empty
-
-findVariable :: Term -> Set Term
-
-findVariable (MkTerm _ _ []) =Set.empty
-
-findVariable (Variable name) =  Set.singleton (Variable name)
-
-findVariable (MkTerm _ _ list) = findVariablesList list
 
 
 
@@ -440,6 +243,6 @@ findBindingRule pred (x:xs) = case binder of
     Nothing -> findBindingRule pred xs
     Just bind ->Just (x,xs)
     where
-    binder = findBinderPred (headTerm x) pred
+    binder = findBinder (headTerm x) pred
     
 

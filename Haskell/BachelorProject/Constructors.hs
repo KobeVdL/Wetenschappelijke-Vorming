@@ -1,15 +1,8 @@
 module Constructors where
     
-import Project
+
 import BasicProlog
-import Shuffle
-import TopDown
-import Data.Set (Set)
-import Data.Map (Map)
-import Data.Maybe (Maybe)
-import Debug.Trace
-import Control.Monad.Trans.Maybe
-import Data.Time.Clock.POSIX
+
 
 
 import qualified Data.Set as Set
@@ -216,5 +209,17 @@ parentProgram = MkProgram [f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,r1,r2]
     r2 = Rule (MkPredicate "sgc" 2 [Variable "X",Variable "Y"]) [MkPredicate "Parent" 2 [Variable "X",Variable "X1"],
         MkPredicate "sgc" 2 [Variable "X1",Variable "Y1"],
         MkPredicate "Parent" 2 [Variable "Y",Variable "Y1"]]
+        
+        
+
+
+createFacts :: [Predicate] -> [Clause]
+
+createFacts [] = []
+
+createFacts (x:xs) = (Rule x []) : createFacts xs
+
+
+
  
     

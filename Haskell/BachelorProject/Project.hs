@@ -6,13 +6,15 @@ import BasicProlog
 import Shuffle
 import TopDown
 import TopDownBackTrack
+import PropertyChecking
+import BottomUp
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.List
 import Debug.Trace
-import System.IO.Unsafe
-import PropertyChecking
+
+
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map

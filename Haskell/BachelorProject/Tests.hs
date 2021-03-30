@@ -5,17 +5,20 @@ import BasicProlog
 import Shuffle
 import TopDown
 import Constructors
+import PropertyChecking
+import System.Environment
+import NaiveGenerator
+import TopDownBackTrack
+import Shrinking
+import BottomUp
+
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Debug.Trace
 import Control.Monad.Trans.Maybe
 import Data.Time.Clock.POSIX
-import PropertyChecking
-import System.Environment
-import NaiveGenerator
-import TopDownBackTrack
-import Shrinking
+
 
 
 
@@ -57,7 +60,7 @@ test6 = print (show (findNewPred r Map.empty m1))
     m = Map.empty
     m1 = Map.insert "b" (Set.fromList [[t1]]) m 
    
-findBinderTest = findBinderArguments (valuesOfPred (hasType [x,nat])) [zero,nat]
+findBinderTest = findBinder (valuesOfPred (hasType [x,nat])) [zero,nat]
     where 
     zero = MkTerm "Zero" 0 []
     true = MkTerm "True" 0 []
@@ -75,7 +78,7 @@ findBinderTest = findBinderArguments (valuesOfPred (hasType [x,nat])) [zero,nat]
     --Just binder= findBinderPred (hasType [y]) (hasType [leq [x,y]]) 
    
 
-binderPredTest = bindRule (Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasType [y,nat]]) binder  
+binderPredTest = bindValue (Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasType [y,nat]]) binder  
     where 
     zero = MkTerm "Zero" 0 []
     true = MkTerm "True" 0 []
@@ -90,7 +93,7 @@ binderPredTest = bindRule (Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasT
     w = Variable "W"
     ifThenElse = MkTerm "ifThenElse" 3
     hasType = MkPredicate "hasType" 2
-    Just binder= findBinderPred (hasType [y]) (hasType [leq [x,y]]) 
+    Just binder= findBinder (hasType [y]) (hasType [leq [x,y]]) 
 
 -- geeft steeds hetzelfde resultaat terug
 --bottomUpTest =  topDownPred (MkPredicate "hasType" 2 [Variable "X",Variable "Z2"])  aritProgram 8
@@ -119,7 +122,7 @@ evalTest = do
 changeVariableTest :: IO ()
 
 changeVariableTest = do 
-    putStrLn (show (changeVariableInPredicate pred z replacingTerm))
+    putStrLn (show (changeVariable z replacingTerm pred))
     where
     emptyArray = MkTerm "[]" 0 [] --[hasType(:(ifThenElse(True,[],[]),ifThenElse(ifThenElse(False,False,False),[],[])),array(array(array(array(array(X))))))]
     array = MkTerm "array" 1 
