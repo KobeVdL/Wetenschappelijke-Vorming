@@ -63,58 +63,6 @@ Predicaat en/of term moet de volgende omringen
 -}
 
 
---Rename variable gaat eerst alle variabele zoeken die er in voorkomen en dan hernoemen naar _n
--- met n een nummer, we verwachten dat de gebruiker geen variabele ingeeft van deze vorm 
-findVariablesList :: [Term] -> Set Term
-
-findVariablesList  = foldr (\x acc-> Set.union (findVariable x) acc ) Set.empty
-
-findVariable :: Term -> Set Term
-
-findVariable (MkTerm _ _ []) =Set.empty
-
-findVariable (Variable name) =  Set.singleton (Variable name)
-
-findVariable (MkTerm _ _ list) = findVariablesList list
-
-
-renameVariableClause :: Clause -> Int-> (Clause,Int)
-
-renameVariableClause clause n = (newClause,(Set.size varSet +n))
-    where
-    varSet = foldr (Set.union . findVariablesList . valuesOfPred) (Set.empty)((headTerm clause):body clause)
-    binder  = renameBinder (Set.toList varSet) n
-    [headRule] = applyBinder ([headTerm clause]) binder
-    newClause = Rule headRule (applyBinder (body clause) binder)
-
-
-renameVariablePred :: Predicate -> Int-> (Predicate,Int)
-
-renameVariablePred pred n = (newPred,(Set.size set+n))
-    where
-    set = findVariablesList (valuesOfPred pred)
-    binder  = renameBinder (Set.toList set) n
-    [newPred] = applyBinder [pred] binder 
-
-renameBinder :: [Term] -> Int -> Binder
-  
-renameBinder [] _ = Map.empty
-  
-renameBinder (x:xs) n = Map.union (Map.singleton x (Variable ("_" ++ show n))) (renameBinder xs (n+1))
-
- 
-
-
-findBindingRule :: Predicate -> [Clause] -> Maybe (Clause,[Clause])
-
-findBindingRule pred [] = Nothing
-
-findBindingRule pred (x:xs) = case binder of
-    Nothing -> findBindingRule pred xs
-    Just bind -> Just (x,xs)
-    where
-    binder = findBinderPred (headTerm x) pred
-    
 
 
 
@@ -158,57 +106,6 @@ randomPermutation ::  [a] -> IO [a]
 randomPermutation = shuffle
 
 
-
--- Gaat de uiteindelijke binder voor predikaat teruggeven
--- doe dit door middel van regel te zoeken die je kan toepassen 
--- Hiervan binder zoeken en toepassen zodat je uiteindelijke predikaat terugkrijgt en daarvan binders gaat zoeken
-
-topDownPred :: Predicate -> ([Clause],[Clause]) -> Int -> IO (Maybe Binder)   -- Tranformer van monad voor meer info bekijk https://mmhaskell.com/monads/transformers
-
-   
-topDownPred pred (const,rules) 0 =  do
-    x <- randomPermutation (const)
-    let sol =  do 
-        (r,rest)  <-  findBindingRule pred x 
-        findBinderPred pred (headTerm r)--Maybe block
-    return sol
-    
-
-topDownPred pred (const,rules) n = do
-    x <- randomPermutation (rules)
-    let (Just newRule) =  do --Maybe block
-            (r,rest) <- findBindingRule pred x
-            bind <- findBinderPred newPred (headTerm r)
-            Just (bindRule r bind)
-    --case newRule of
-    --    Just newRule2 ->do  
-    dividedPred' <- splitNumber (n-1) (length(body newRule))
-    dividedPred <- shuffle dividedPred'
-    z <- findBinderStep (body newRule) ((const,rules)) dividedPred
-    return (z >>= (\y -> findBinderPred (headTerm (bindRule newRule y)) pred))  
-    --    Nothing -> return Nothing
-    where
-    (newPred,n)= renameVariablePred pred 0
-
-
-
-
-    
-findBinderStep :: [Predicate] -> ([Clause],[Clause])  -> [Int] -> IO (Maybe Binder)    
-
-findBinderStep [] _ [] = return (Just Map.empty)
-
-findBinderStep (x:xs) program (size:rest) = do
-    binder <- topDownPred x program size
-    case binder of
-        Just binderOfX -> do
-            let newPredicates = Map.foldrWithKey (\t1 t2 predList -> changeVariableInPredicateList predList t1 t2) xs binderOfX
-            recursiveSearch <- findBinderStep newPredicates program rest
-            return (maybeUnion (binder) (recursiveSearch))
-        Nothing -> return Nothing
-
-
-
    
 depthFirst:: [a]-> [a] -> [a]
 
@@ -249,6 +146,10 @@ goTopDown (w,n) ws rs funct totalProgram index =do
             --putStrLn (show ws')
             dividedPred' <- splitNumber (n-1) (length(ws'))
             dividedPred <- shuffle dividedPred'
+            --putStrLn ("Old List of preds are "++ show ws)
+            --putStrLn ("Binders are "++ show (binder))
+            --putStrLn ("Added rules are "++ show (ws'))
+            --putStrLn ("New List of preds are "++ show (applyBinderSizeList ws binder))
             p <- topDownLoop ((depthFirst) (zip ws' dividedPred) (applyBinderSizeList ws binder)) totalProgram funct newIndex  -- diepte eerst
             case p of 
                 Just l -> return (Just ( binder : l))
@@ -268,7 +169,7 @@ stepRule (pred,0) rest (const,rules) index = do
                let (editedRule,newIndex) = renameVariableClause rule index
                --putStrLn ("rule is " ++ show editedRule)
                --putStrLn ("pred is " ++ show pred)
-               let  Just bind = findBinderPred pred (headTerm rule) --altijd voldaan door findBindingRule
+               let  Just bind = findBinderPred pred (headTerm editedRule) --altijd voldaan door findBindingRule
                return (Just (((applyBinder (body editedRule) bind)),bind,
                 (rest,rules),newIndex))
                 
@@ -284,9 +185,7 @@ stepRule (pred,n) rest (const,rules) index = do
                return (Just (((applyBinder (body editedRule) bind)),bind,
                 (const,rest),newIndex))
 
-applyBinder :: [Predicate] -> Binder -> [Predicate]
 
-applyBinder = Map.foldrWithKey (\t1 t2 predList -> changeVariableInPredicateList predList t1 t2) 
 
 
 

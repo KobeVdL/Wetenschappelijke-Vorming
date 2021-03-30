@@ -50,6 +50,73 @@ aritProgram = MkProgram (r1:r2:r3:facts)
     r2 = Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasType [y,nat]]
     r3 =  Rule (hasType [ifThenElse [x,y,z],w]) [hasType [x,bool],hasType [y,w],hasType [z,w]]
     
+    
+aritProgramUpgraded :: Program
+
+aritProgramUpgraded = MkProgram (r1 :(arrayRules ++ numRules ++ facts))
+    where
+    zero = MkTerm "Zero" 0 []
+    true = MkTerm "True" 0 []
+    false = MkTerm "False" 0 []
+    emptyArray = MkTerm "[]" 0 []
+    letterA = MkTerm "'A'" 0 []
+    succ = MkTerm "succ" 1 --lijst geef je zelf mee
+    leq = MkTerm "leq" 2 
+    array = MkTerm "array" 1 
+    nat = MkTerm "nat" 0 []
+    bool = MkTerm "bool" 0 []
+    char = MkTerm "Char" 0 []
+    x = Variable "X"
+    y = Variable "Y"
+    z = Variable "Z"
+    w = Variable "W"
+    ifThenElse = MkTerm "ifThenElse" 3
+    hasType = MkPredicate "hasType" 2 
+    facts = createFacts [hasType [true,bool], hasType [false,bool],hasType [zero,nat], hasType [letterA,char], hasType [emptyArray,array [x]] ]
+    numRules = createNumberRules 
+    arrayRules = createArrayRules
+    r1 =  Rule (hasType [ifThenElse [x,y,z],w]) [hasType [x,bool],hasType [y,w],hasType [z,w]]
+    
+
+createNumberRules :: [Clause]
+
+createNumberRules = [r1,r2,r3,r4,r5]
+    where
+    zero = MkTerm "Zero" 0 []
+    succ = MkTerm "succ" 1 
+    leq = MkTerm "leq" 2 
+    bool = MkTerm "bool" 0 []
+    nat = MkTerm "nat" 0 []
+    x = Variable "X"
+    y = Variable "Y"
+    add = MkTerm "add" 2
+    subtract = MkTerm "subtract" 2
+    multiply = MkTerm "multiply" 2
+    hasType = MkPredicate "hasType" 2 
+    r1 = Rule (hasType [succ [x],nat]) [hasType [x,nat]]
+    r2 = Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasType [y,nat]]
+    r3 = Rule (hasType [add [x,y],nat]) [hasType [x,nat],hasType [y,nat]]
+    r4 = Rule (hasType [subtract [x,y],nat]) [hasType [x,nat],hasType [y,nat]]
+    r5 = Rule (hasType [multiply [x,y],nat]) [hasType [x,nat],hasType [y,nat]]
+    
+createArrayRules = r2:r1:[]
+    where -- :([],[]) => array(array(X)))
+    emptyArray = MkTerm "[]" 0 [] --[hasType(:(ifThenElse(True,[],[]),ifThenElse(ifThenElse(False,False,False),[],[])),array(array(array(array(array(X))))))]
+    array = MkTerm "array" 1 
+    x = Variable "X"
+    y = Variable "Y"
+    z = Variable "Z"
+    w = Variable "W"
+    ifThenElse = MkTerm "ifThenElse" 3
+    addArray = MkTerm ":" 2
+    append = MkTerm "++" 2
+    hasType = MkPredicate "hasType" 2 
+    r1 = Rule (hasType [addArray [x,y],array [z]]) [hasType [x,z],hasType [y,array [z]]] -- TODO er is nog iets mis met arrays
+    r2 = Rule (hasType [append [x,y],array [z]]) [hasType [x,array [z]],hasType [y,array [z]]] -- [hasType(ifThenElse(True,ifThenElse(True,++([],++([],:([],[]))),[]),++(:(++([],ifThenElse(False,[],[])),[]),++([],[]))),array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(array(X))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))]
+    
+
+    
+    
 aritProgram2 :: Program
 
 aritProgram2 = MkProgram (r1:r2:r3:facts)

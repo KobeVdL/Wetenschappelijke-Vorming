@@ -15,6 +15,7 @@ import PropertyChecking
 import System.Environment
 import NaiveGenerator
 import TopDownBackTrack
+import Shrinking
 
 
 
@@ -98,9 +99,41 @@ binderPredTest = bindRule (Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasT
 topDownAlgorithmTest :: IO ()
 
 topDownAlgorithmTest = do
-        d <- topDownAlgorithm ([MkPredicate "hasType" 2 [Variable "X1",Variable "Z2"]]) 50 (serperateConstant aritProgram) depthFirst 0
+        d <- topDownAlgorithm ([MkPredicate "hasType" 2 [Variable "X1",Variable "Z2"]]) 100 (serperateConstant aritProgramUpgraded) depthFirst 0
         putStrLn (show d )
         return ()
+        
+        
+evalTest :: IO() 
+
+evalTest = do 
+    d <- topDownAlgorithm ([MkPredicate "hasType" 2 [Variable "X1",Variable "Z2"]]) 100 (serperateConstant aritProgramUpgraded) depthFirst 0
+    case d of
+        Just ([MkPredicate "hasType" 2 [val,typeOfVal]])-> do
+            putStrLn (show val)
+            putStrLn ""
+            putStrLn (show (eval val step))
+        Nothing -> return ()
+        
+        
+changeVariableTest :: IO ()
+
+changeVariableTest = do 
+    putStrLn (show (changeVariableInPredicate pred z replacingTerm))
+    where
+    emptyArray = MkTerm "[]" 0 [] --[hasType(:(ifThenElse(True,[],[]),ifThenElse(ifThenElse(False,False,False),[],[])),array(array(array(array(array(X))))))]
+    array = MkTerm "array" 1 
+    x = Variable "X"
+    y = Variable "Y"
+    z = Variable "Z"
+    w = Variable "W"
+    ifThenElse = MkTerm "ifThenElse" 3
+    addArray = MkTerm ":" 2
+    append = MkTerm "++" 2
+    hasType = MkPredicate "hasType" 2 
+    pred = hasType [y,array [z]]
+    replacingTerm = array [z]
+
 
 topDownBacktrackAlgorithmTest :: IO ()
 
@@ -108,58 +141,80 @@ topDownBacktrackAlgorithmTest = do
         d <- topDownBacktrackAlgorithm ([MkPredicate "hasType" 2 [Variable "X1",Variable "Z2"]]) 2000 (serperateConstant aritProgram) depthFirst 0 0
         putStrLn (show d )
         return ()
+        
+        
+shrinkingTest:: IO() 
+
+shrinkingTest = do -- FOUT mss in property Just hasType(succ(succ(succ(succ(Zero)))),nat) is niet aan property voldaan
+        maybeTerm <- topDownPropertyChecking 10 100 (checkProperty step1) aritProgram
+        putStrLn (show maybeTerm)
+        let shrinkedTerm = do
+            term <- maybeTerm
+            Just (shrinkAlgorithm term (checkProperty step1) aritProgram)
+        putStrLn (show shrinkedTerm)
+            
+randomTest:: IO()
+
+randomTest = do
+        putStrLn (show (checkProperty step2 (hasType [zero,nat])))
+        
+        where
+        zero = MkTerm "Zero" 0 []
+        nat = MkTerm "nat" 0 []
+        hasType = MkPredicate "hasType" 2 
+        
+        
  
 {- 
 Calculates the time needed to check the property of the program
 -}
-timeUsedPropertyTopDown ::Int -> Int -> Program -> (String-> Term-> Maybe Term) -> IO Int
+timeUsedPropertyTopDown ::Int -> Int -> Program -> (Predicate -> Bool) -> IO Int
     
-timeUsedPropertyTopDown times size program func  = do 
+timeUsedPropertyTopDown times size program propCheck = do 
     timeUsedProperty method
     where
-    method = topDownPropertyChecking size times func program
+    method = topDownPropertyChecking size times propCheck program
 
     
 --Calculates the time needed to check the property of the program
-timeUsedPropertyBottomUp :: Int -> Program -> (String-> Term-> Maybe Term) -> IO Int
+timeUsedPropertyBottomUp :: Int -> Program -> (Predicate -> Bool) -> IO Int
     
-timeUsedPropertyBottomUp size program func  = do
+timeUsedPropertyBottomUp size program propCheck  = do
     --if (size > 2) then 
      --   timeUsedProperty method2 -- BottomUp kan niet groter dan 3 worden want is dan te groot
    -- else
         timeUsedProperty method
     where
-    method = fastBottomUpProperty program func size Map.empty Map.empty
-    method2 = fastBottomUpProperty program func 2 Map.empty Map.empty
+    method = fastBottomUpProperty program propCheck size Map.empty Map.empty
+    method2 = fastBottomUpProperty program propCheck 2 Map.empty Map.empty
 
     
-timeUsedPropertyNaive :: Int -> Int -> (String-> Term-> Maybe Term) -> IO Int    
+timeUsedPropertyNaive :: Int -> Int -> (Predicate -> Bool) -> IO Int    
     
-timeUsedPropertyNaive times size func  = do 
+timeUsedPropertyNaive times size propCheck  = do 
     timeUsedProperty method
     where
-    method = naiveTryUntillPropertyFalse times size func
+    method = naiveTryUntillPropertyFalse times size propCheck
     
-timeUsedPropertyTopDownBacktrack :: Int -> Int-> Int -> Program -> (String-> Term-> Maybe Term)-> IO Int 
+timeUsedPropertyTopDownBacktrack :: Int -> Int-> Int -> Program -> (Predicate -> Bool)-> IO Int 
  
-timeUsedPropertyTopDownBacktrack  times size forget program func  = do 
+timeUsedPropertyTopDownBacktrack  times size forget program propCheck  = do 
     timeUsedProperty method
     where
-    method = topDownBacktrackPropertyChecking size times  forget func program  
+    method = topDownBacktrackPropertyChecking size times forget propCheck program  
  
     
 -- calculates the time needed to find that the property is false    
-timeUsedProperty :: (IO Bool) -> IO Int
+timeUsedProperty :: (IO (Maybe Predicate)) -> IO Int
     
 timeUsedProperty method =
     do 
     time1 <- getPOSIXTime
-    boolProp <- method
+    maybeTerm <- method
     time2 <- getPOSIXTime
-    if boolProp then do
-        return (posixToInt (time2-time1)) -- heeft het juiste resultaat gevonden
-     else
-        return (maxBound) -- Denkt dat de property juist is dus zet tijd op oneindig
+    case maybeTerm of
+        Just term -> return (posixToInt (time2-time1)) -- heeft het juiste resultaat gevonden
+        Nothing -> return (maxBound) -- Denkt dat de property juist is dus zet tijd op oneindig
     
 
 
@@ -207,7 +262,7 @@ calResults1 :: IO()
 
 calResults1 = timeResults 20 methodsToPerform "Output/output.csv"
     where
-    ts = (\x y -> timeUsedPropertyTopDown x y aritProgram step)
+    ts = (\x y -> timeUsedPropertyTopDown x y aritProgram (checkProperty step))
     methodsToPerform = [ts 5 20 , ts 10 20 ,ts 20 20, ts 50 20,ts 100 20 , ts 500 20 ,ts 1000 20]
 
 calResults2 :: IO()
@@ -215,33 +270,33 @@ calResults2 :: IO()
 calResults2 = timeResults 20 methodsToPerform "Output/output2.csv"
     where
     ts = (\x y -> timeUsedPropertyTopDown 20 20 x y)
-    methodsToPerform = [ts aritProgram step , ts aritProgram2 step ,ts aritProgram3 step, ts aritProgram step1, ts aritProgram step2,  ts aritProgram step3 ]
+    methodsToPerform = [ts aritProgram (checkProperty step) , ts aritProgram2 (checkProperty step) ,ts aritProgram3 (checkProperty step), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
 
 calResults3 :: IO()
 
 calResults3 = timeResults 20 methodsToPerform "Output/output3.csv"
     where
     ts = (\x y -> timeUsedPropertyBottomUp 3 x y)
-    methodsToPerform = [ts aritProgram step , ts aritProgram2 step ,ts aritProgram3 step, ts aritProgram step1, ts aritProgram step2,  ts aritProgram step3 ]
+    methodsToPerform = [ts aritProgram (checkProperty step) , ts aritProgram2 (checkProperty step) ,ts aritProgram3 (checkProperty step), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
             
  
-calResultsFinal :: Int -> (String-> Term-> Maybe Term) -> IO()
+calResultsFinal :: Int -> (Predicate -> Bool) -> IO()
 
-calResultsFinal size func = timeResults 20 methodsToPerform ("Output/outputFinal.6."++ (show size) ++ ".csv")
+calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output/outputFinal.6."++ (show size) ++ ".csv")
     where  
     tsNaive = (\x -> timeUsedPropertyNaive 10000 size x)
     tsBottom = (\x y -> timeUsedPropertyBottomUp size x y)
     tsTop = (\x y -> timeUsedPropertyTopDown 1000 size x y)
     tsTopBacktrack = (\x y ->  timeUsedPropertyTopDownBacktrack  1000 size 0 x y)
-    methodsToPerform = [tsNaive func ,tsBottom aritProgram func , tsTop aritProgram func ,tsTopBacktrack aritProgram func]
+    methodsToPerform = [tsNaive propCheck ,tsBottom aritProgram propCheck , tsTop aritProgram propCheck ,tsTopBacktrack aritProgram propCheck]
 
-calResultLoopSize:: Int->(String-> Term-> Maybe Term) -> IO()
+calResultLoopSize:: Int->(Predicate -> Bool) -> IO()
 
-calResultLoopSize  (-1) func = return ()
+calResultLoopSize  (-1) propCheck = return ()
 
-calResultLoopSize  max func = do
-    calResultLoopSize (max-1) func
-    calResultsFinal max func
+calResultLoopSize  max propCheck = do
+    calResultLoopSize (max-1) propCheck
+    calResultsFinal max propCheck
  
             
 naivePercentage:: Int -> Int -> IO Float 
@@ -285,7 +340,7 @@ percentageWriteHelper max current
     
 ariTest :: Scheme
 
-ariTest = semiNaiveBottomUp aritProgram 3 Map.empty Map.empty
+ariTest = semiNaiveBottomUp aritProgramUpgraded 2 Map.empty Map.empty
 
 
 ariTest2 :: Scheme
