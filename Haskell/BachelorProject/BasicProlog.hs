@@ -11,13 +11,29 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
+-- This class states that given object can be binded with a binder with another object
+-- Furthermore it has functions that rename the variables to "_" ++ #Number#
+-- Last but not least it also a function that returns all the variables that are included in given object
 class (Bindable a) where
+    -- binds the object with given binder
     bindValue :: a -> Binder -> a
+    
+    -- first term is a variable and second is the replacingTerm, replaces all occurences of the first term
+    -- with second term in given object
     changeVariable ::  Term -> Term -> a -> a
+    
+    -- finds the binder so that after applying it to the first object, the first and the second are equal
     findBinder :: a -> a -> Maybe Binder
+    
+    -- renames the variables with "_" ++ #Number# where starting number is given and is increased for each variable
     rename :: a -> Int -> (a,Int)
+    
+    -- returns a set of all the variables in given object
     findVariables :: a -> Set Term
 
+
+-- Term consist of a name kardinality and his arguments, for constants use kardinality=0 and arguments=[]
+-- Term can also be a variable that has only a name
 data Term = MkTerm { 
             name :: String ,
             kardinaliteit :: Int ,
@@ -28,17 +44,30 @@ data Term = MkTerm {
             name :: String}
             deriving (Ord)
             
---Elke buitenste is een predikaat deze bevat termen als argumenten
+
+-- Predicate class forms the outer layer in a prolog program, it has a list of terms as arguments
 data Predicate = MkPredicate {
                     nameOfPred :: String ,
                     kardinaliteitOfPred :: Int ,
                     valuesOfPred :: [Term] }deriving Ord
                     
 
+
+-- A clause consist of one Predicate which forms the head of the rule
+-- and a list of predicates which forms the body of the rule
 data Clause = Rule
               {headTerm :: Predicate ,
               body :: [Predicate] }    
               deriving (Eq, Show)
+
+-- A program is a list of clauses (like a prolog program)
+data Program = MkProgram [Clause]
+
+
+-- Maps a Variable to a Term
+type Binder = Map Term Term
+
+
 
 
 instance Eq Term  where 
@@ -157,6 +186,7 @@ instance Bindable a => Bindable [a] where
 
     
 
+-- Shows a list of terms serperated by a comma
 showTermList :: [Term] -> String
 
 showTermList [] = ""
@@ -166,7 +196,7 @@ showTermList [x] = show x
 showTermList (x:xs) = show x ++ "," ++ showTermList xs 
 
 
-
+-- Checks if two list of terms are equal to each other
 termValuesEqual :: [Term] -> [Term] -> Bool
 
 termValuesEqual [] [] = True
@@ -175,15 +205,7 @@ termValuesEqual (x:xs) (y:ys) = (x == y) && termValuesEqual xs ys
 
     
 
-
-type Binder = Map Term Term
-
-
---data Value a = MkValue a deriving (Eq, Show)
-
-
-newtype Program = MkProgram [Clause]
-
+-- returns the list of clauses which are packed in a Program
 releaseProgram :: Program -> [Clause]
 
 releaseProgram (MkProgram list) = list
@@ -195,8 +217,6 @@ releaseProgram (MkProgram list) = list
     2. Ga alle mogelijke manieren bekijken om body van regel te voldoen (mss aparte lijst per term naam bijhouden)
     3. Voer een unificatie uit op de term en de body => gefaald probeer andere variabele
     4. Werkt wel voeg Head toe aan nieuwe elementen die aan het einde van de iteratie wordt toegevoegd aan de totale lijst
-    
- 
  -}   
 
 -- Append a program to another program
@@ -205,12 +225,8 @@ appendProgram :: Program -> Program -> Program
 appendProgram (MkProgram p1) (MkProgram p2) = MkProgram (p1 ++ p2)
 
 
-
-
     
---Gegeven een binder pas deze toe op de regel.     
-    
-
+-- append 2 maybe binders to each other, returns nothing if one of them is nothing
 appendBinder :: Maybe Binder -> Maybe Binder -> Maybe Binder
 
 appendBinder binder1 binder2 = do 
@@ -219,13 +235,7 @@ appendBinder binder1 binder2 = do
     Just (Map.union x y)
 
 
-addToBinder :: (Term,Term) -> Binder -> Binder
-
-addToBinder (Variable v,term) = Map.insert (Variable v) term
- 
-
-
-
+-- Creates the binder that renames all the variables to another variable
 renameBinder :: [Term] -> Int -> Binder
   
 renameBinder [] _ = Map.empty
@@ -234,7 +244,8 @@ renameBinder (x:xs) n = Map.union (Map.singleton x (Variable ("_" ++ show n))) (
 
 
 
-
+-- With given predicate search for a rule where the head of the rule matches with a binding to the given pred
+-- Returns Nothing if no such rule available
 findBindingRule :: Predicate -> [Clause] -> Maybe (Clause,[Clause])
 
 findBindingRule pred [] = Nothing

@@ -9,7 +9,7 @@ import Data.Maybe (Maybe)
 import Data.List
 import Debug.Trace
 
-
+-- TODO kan je dit niet blijven laten hollowen?
 
 
 import qualified Data.Set as Set
@@ -21,6 +21,8 @@ import qualified Data.Set as Set
     peel and hollow algoritmes
 -}
 
+-- Removes the top layer of rules such that the property and precondition  not holds --TODO precondition cejcl
+-- It 'peels' of the rules used that are not directly needed
 shrinkAlgorithm:: Predicate ->(Predicate -> Bool) -> Program -> (Set Predicate)
 
 shrinkAlgorithm startPred propCheck program= Set.fromList(result)
@@ -28,6 +30,8 @@ shrinkAlgorithm startPred propCheck program= Set.fromList(result)
     shrinkedPred = shrinkTermPeel startPred propCheck program
     result = concat (map (\x -> shrinkTermHollow x propCheck program) shrinkedPred)
 
+-- perform a peel step in which the top term is removed and checked if the property  not holds
+-- this is done by using a rule to simplify the predicate and the body of the rule is checked apart each time
 shrinkTermPeel:: Predicate->(Predicate -> Bool) -> Program -> [Predicate]
 
 shrinkTermPeel startPred propCheck program
@@ -37,6 +41,10 @@ shrinkTermPeel startPred propCheck program
     reducedPreds = reducePred startPred (releaseProgram program)
     predsNotValid = filter (\x-> not (propCheck x)) reducedPreds
  
+ 
+ 
+-- Hollow the given term by reducing the inner terms inside the outer term
+-- and checking each time if the precondition holds and the property not 
 shrinkTermHollow::  Predicate -> (Predicate -> Bool) -> Program -> [Predicate]
 
 shrinkTermHollow startPred@(MkPredicate name kard [term @(MkTerm nameTerm kardTerm listTerms),typeOfTerm]) propCheck program = hollowSolution startSol startWorkList 0 toPred propCheck  -- TODO voor alle programmas maken, gaat niet
@@ -46,7 +54,7 @@ shrinkTermHollow startPred@(MkPredicate name kard [term @(MkTerm nameTerm kardTe
     
 
     
-    
+-- construct all preds that are inside a term and that reduce the term
 hollowSolution :: [Set Term] -> [[Term]] -> Int -> ([Term] -> Predicate)-> (Predicate -> Bool) -> [Predicate]
 
 hollowSolution sol [] index toPred propCheck = map toPred (constuctValuesPred sol (-1) (Variable "this is not used"))
@@ -74,7 +82,7 @@ maxReducedForCurrentIndex currentSol index toPred propCheck (x:xs)
     stepResults = hollowStep currentSol index toPred propCheck x
 
 
-    
+--performs one step in the hollow algorithm returns an empty list if none such terms exist
 hollowStep :: [Set Term] -> Int -> ([Term] -> Predicate) -> (Predicate -> Bool) -> Term -> [Term] --TODO geen idee 
 
 hollowStep currentSol index toPred propCheck stepTerm = filter (validCounterPred currentSol index toPred propCheck) reduceTerms -- filters out the terms that still form counter examples.
@@ -104,7 +112,7 @@ constuctValuesPred (x:xs) 0 givenTerm = map (givenTerm:) (constuctValuesPred xs 
 constuctValuesPred (x:xs) index givenTerm =  map (\z-> concat (map (z:) (constuctValuesPred xs index givenTerm))) (Set.toList x)
 
 
-
+--sets up the terms for the hollow algorithm
 setUpHollow:: Term -> ([Set Term] ,[[Term]])
 
 setUpHollow term = ( map (\x->Set.singleton x ) (values term) , map (\x->[x]) (values term)) -- Probleem wanneer mag ik stoppen
@@ -120,6 +128,7 @@ setUpHollow term = ( map (\x->Set.singleton x ) (values term) , map (\x->[x]) (v
 -- eerst eerste variabele vereenvoudigen en deze dan als nieuwe variabele zetten, doe hetzelfde voor de volgende
 -- voor gemak begin met 1 variabele
 
+-- reduces a terms with the hollow algorithm
 hollowReduction :: Term->[Term]
 
 hollowReduction (MkTerm "Zero" 0 [])  = []
@@ -166,12 +175,13 @@ reducePred pred clauses =
     foundRule = findBindingRule pred clauses
 
 
-
+-- create a hasType element with the correct Type
 createHasType:: Term->Predicate
 
 createHasType givenTerm = MkPredicate "hasType" 2 [givenTerm,getTypeOfTerm givenTerm]
 
 
+-- gets the type of a term
 getTypeOfTerm ::Term-> Term -- TODO automatisch laten aanpassen aan programma
 
 getTypeOfTerm (MkTerm "Zero" 0 []) = (MkTerm "nat" 0 [])

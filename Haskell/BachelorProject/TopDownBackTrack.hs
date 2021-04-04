@@ -16,6 +16,11 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
+-- creates a predicate with a top-down backtrack approuch, it makes random choices in the syntax tree to generate a program
+-- Returns Nothing if no programs of size n are possible
+-- The top-down approuch work with a worklist that has to be empty to stop
+-- on top of that in the n'th node it instead choose every possible clause it can and gives back all predicates
+-- it found this way   
 topDownBacktrackAlgorithm:: [Predicate] -> Int -> ([Clause],[Clause]) -> ([a] -> [a] -> [a]) -> Int -> Int -> IO ([[Predicate]])
 
 topDownBacktrackAlgorithm startPred n rules func bStep index =do
@@ -29,7 +34,7 @@ topDownBacktrackAlgorithm startPred n rules func bStep index =do
 
 
 
-
+-- similar to the goTopDown but instead go over all clauses and returns a list of list of binders
 allGoTopDown:: (Predicate,Int) -> [(Predicate,Int)] -> ([Clause],[Clause])-> ([a] -> [a] -> [a])->([Clause],[Clause]) ->Int-> IO ([[Binder]])
 
 -- If all facts are evaluated give empty list back (only if size is 0
@@ -83,7 +88,7 @@ topDownLoopBacktrack (w:ws) program func bStep index =
     (goTopDownBacktrack w ws program func program (bStep-1) index) -- geef program mee dat mogelijk verandert en totale programma
 
 
-
+-- exactly the same as goTopDown except holds an bStep variable who is used to check for the given backtrackNode
 goTopDownBacktrack:: (Predicate,Int) -> [(Predicate,Int)] -> ([Clause],[Clause])-> ([a] -> [a] -> [a])->([Clause],[Clause]) -> Int -> Int-> IO ([[Binder]])
 
 goTopDownBacktrack (w,n) ws rs funct totalProgram bStep index =do 

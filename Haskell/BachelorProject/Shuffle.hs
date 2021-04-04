@@ -12,7 +12,7 @@ import Data.STRef
 --   /O(N)/
 -- code gehaald van https://wiki.haskell.org/Random_shuffle
 
-
+-- shuffles the list so that every element is in a random order
 shuffle :: [a] -> IO [a]
 shuffle xs = do
         ar <- newArray n xs
@@ -27,6 +27,7 @@ shuffle xs = do
     newArray :: Int -> [a] -> IO (IOArray Int a)
     newArray n xs =  newListArray (1,n) xs
  
+-- randomly divide an integer over n elements 
 splitNumber :: Int -> Int -> IO [Int]
 
 splitNumber n 0 = do

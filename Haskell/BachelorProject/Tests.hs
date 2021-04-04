@@ -11,6 +11,7 @@ import NaiveGenerator
 import TopDownBackTrack
 import Shrinking
 import BottomUp
+import BasicStep
 
 import Data.Set (Set)
 import Data.Map (Map)
@@ -28,15 +29,15 @@ import qualified Data.Maybe as Maybe
 
 --Test de tijd met :set +s in ghci
 
-
-test7 = print (semiNaiveBottomUp parentProgram 3 Map.empty Map.empty) --test met even getallen implementeren
+-- Tests the bottomUp program with the parentProgram
+test7 = print (semiNaiveBottomUp parentProgram 3 Map.empty Map.empty) 
     
 
-    
+-- Tests the bottomUp program with the evenProgram
 test8 = print (semiNaiveBottomUp evenProgram 8 Map.empty Map.empty)
     
  
-
+-- Tests if the add to correct Scheme works correctly
 test4 = print (addToCorrectScheme p3 m3)
         where
         t1 = MkTerm "a" 0 []
@@ -50,7 +51,7 @@ test4 = print (addToCorrectScheme p3 m3)
         m2 = Map.insert "b" Set.empty m1
         m3 = Map.insert "c" Set.empty m2
 
-         
+-- Tests if the findNewPred works correctly   
 test6 = print (show (findNewPred r Map.empty m1))
     where 
     t1 = MkTerm "a" 0 []
@@ -60,6 +61,8 @@ test6 = print (show (findNewPred r Map.empty m1))
     m = Map.empty
     m1 = Map.insert "b" (Set.fromList [[t1]]) m 
    
+   
+-- Tests if the find binder works correctly   
 findBinderTest = findBinder (valuesOfPred (hasType [x,nat])) [zero,nat]
     where 
     zero = MkTerm "Zero" 0 []
@@ -75,9 +78,8 @@ findBinderTest = findBinder (valuesOfPred (hasType [x,nat])) [zero,nat]
     w = Variable "W"
     ifThenElse = MkTerm "ifThenElse" 3
     hasType = MkPredicate "hasType" 2
-    --Just binder= findBinderPred (hasType [y]) (hasType [leq [x,y]]) 
    
-
+-- Tests if the bindValue works correctly
 binderPredTest = bindValue (Rule (hasType [leq [x,y],bool]) [hasType [x,nat],hasType [y,nat]]) binder  
     where 
     zero = MkTerm "Zero" 0 []
@@ -95,10 +97,8 @@ binderPredTest = bindValue (Rule (hasType [leq [x,y],bool]) [hasType [x,nat],has
     hasType = MkPredicate "hasType" 2
     Just binder= findBinder (hasType [y]) (hasType [leq [x,y]]) 
 
--- geeft steeds hetzelfde resultaat terug
---bottomUpTest =  topDownPred (MkPredicate "hasType" 2 [Variable "X",Variable "Z2"])  aritProgram 8
-    
-    
+
+-- Tests the topDownAlgorithm    
 topDownAlgorithmTest :: IO ()
 
 topDownAlgorithmTest = do
@@ -106,25 +106,29 @@ topDownAlgorithmTest = do
         putStrLn (show d )
         return ()
         
-        
+   
+
+-- Tests the evaluation of a term   
 evalTest :: IO() 
 
 evalTest = do 
-    d <- topDownAlgorithm ([MkPredicate "hasType" 2 [Variable "X1",Variable "Z2"]]) 100 (serperateConstant aritProgramUpgraded) depthFirst 0
+    d <- topDownAlgorithm ([MkPredicate "hasType" 2 [Variable "X1",Variable "Z2"]]) 5 (serperateConstant aritProgramUpgraded) depthFirst 0
     case d of
         Just ([MkPredicate "hasType" 2 [val,typeOfVal]])-> do
-            putStrLn (show val)
+            putStrLn (show (MkPredicate "hasType" 2 [val,typeOfVal]))
             putStrLn ""
-            putStrLn (show (eval val step))
+            putStrLn (show (eval val normalStep))
         Nothing -> return ()
         
-        
+
+
+-- Tests if the changeVariable works correctly        
 changeVariableTest :: IO ()
 
 changeVariableTest = do 
     putStrLn (show (changeVariable z replacingTerm pred))
     where
-    emptyArray = MkTerm "[]" 0 [] --[hasType(:(ifThenElse(True,[],[]),ifThenElse(ifThenElse(False,False,False),[],[])),array(array(array(array(array(X))))))]
+    emptyArray = MkTerm "[]" 0 [] 
     array = MkTerm "array" 1 
     x = Variable "X"
     y = Variable "Y"
@@ -138,6 +142,7 @@ changeVariableTest = do
     replacingTerm = array [z]
 
 
+-- Tests the backtrack algorithm
 topDownBacktrackAlgorithmTest :: IO ()
 
 topDownBacktrackAlgorithmTest = do
@@ -145,21 +150,24 @@ topDownBacktrackAlgorithmTest = do
         putStrLn (show d )
         return ()
         
-        
+
+-- Tests the shrinking algorithm
 shrinkingTest:: IO() 
 
 shrinkingTest = do -- FOUT mss in property Just hasType(succ(succ(succ(succ(Zero)))),nat) is niet aan property voldaan
-        maybeTerm <- topDownPropertyChecking 10 100 (checkProperty step1) aritProgram
+        maybeTerm <- topDownPropertyChecking 10 100 (checkProperty step3) aritProgram
         putStrLn (show maybeTerm)
         let shrinkedTerm = do
             term <- maybeTerm
-            Just (shrinkAlgorithm term (checkProperty step1) aritProgram)
+            Just (shrinkAlgorithm term (checkProperty step3) aritProgram)
         putStrLn (show shrinkedTerm)
             
-randomTest:: IO()
+            
+-- tests the checkProperty method        
+checkPropertyTest:: IO()
 
-randomTest = do
-        putStrLn (show (checkProperty step2 (hasType [zero,nat])))
+checkPropertyTest = do
+        putStrLn (show (checkProperty step3 (hasType [zero,nat])))
         
         where
         zero = MkTerm "Zero" 0 []
@@ -169,7 +177,7 @@ randomTest = do
         
  
 {- 
-Calculates the time needed to check the property of the program
+Calculates the time needed to check the property of the program for a TopDown algorithm
 -}
 timeUsedPropertyTopDown ::Int -> Int -> Program -> (Predicate -> Bool) -> IO Int
     
@@ -179,7 +187,7 @@ timeUsedPropertyTopDown times size program propCheck = do
     method = topDownPropertyChecking size times propCheck program
 
     
---Calculates the time needed to check the property of the program
+--Calculates the time needed to check the property of the program for a BottomUp algorithm
 timeUsedPropertyBottomUp :: Int -> Program -> (Predicate -> Bool) -> IO Int
     
 timeUsedPropertyBottomUp size program propCheck  = do
@@ -191,7 +199,7 @@ timeUsedPropertyBottomUp size program propCheck  = do
     method = fastBottomUpProperty program propCheck size Map.empty Map.empty
     method2 = fastBottomUpProperty program propCheck 2 Map.empty Map.empty
 
-    
+-- Calculates the time needed to check the property of the program for a Naïve algorithm
 timeUsedPropertyNaive :: Int -> Int -> (Predicate -> Bool) -> IO Int    
     
 timeUsedPropertyNaive times size propCheck  = do 
@@ -199,6 +207,8 @@ timeUsedPropertyNaive times size propCheck  = do
     where
     method = naiveTryUntillPropertyFalse times size propCheck
     
+    
+--Calculates the time needed to check the property of the program for a TopDownBackTrack algorithm
 timeUsedPropertyTopDownBacktrack :: Int -> Int-> Int -> Program -> (Predicate -> Bool)-> IO Int 
  
 timeUsedPropertyTopDownBacktrack  times size forget program propCheck  = do 
@@ -229,6 +239,8 @@ posixToInt :: POSIXTime ->Int
 
 posixToInt time = floor(toRational(time * 10000)) 
     
+    
+-- returns the result into a csvString where n is the number of times you try the test
 resultsToString :: (Show a) => Int -> [IO a] -> IO String
 
 resultsToString 0 _ = return ""
@@ -239,7 +251,7 @@ resultsToString n methodsToPerform =do
     return (result ++ resStr)
     
     
-
+--  turn the results of the methods into a Csv (one array)
 methodsToCsv :: (Show a) =>  [IO a] -> IO String
 
 methodsToCsv [] = return "\n"
@@ -254,35 +266,41 @@ methodsToCsv (x:xs)= do
     return (show result ++ ";" ++ restResult)
     
     
-
+-- Write the output of the methods to a file, n is the times you try the method, the next is the list of methods
+-- that have to performed , lastly is the fileName where the result needs to be written to.
 timeResults ::(Show a) => Int -> [IO a] -> String -> IO()
 
 timeResults n methodsToPerform output= do
     s <- resultsToString n methodsToPerform
     writeFile output s
 
+-- Test the timing method for the top Down Algorithm
 calResults1 :: IO()
 
 calResults1 = timeResults 20 methodsToPerform "Output/output.csv"
     where
-    ts = (\x y -> timeUsedPropertyTopDown x y aritProgram (checkProperty step))
+    ts = (\x y -> timeUsedPropertyTopDown x y aritProgram (checkProperty normalStep))
     methodsToPerform = [ts 5 20 , ts 10 20 ,ts 20 20, ts 50 20,ts 100 20 , ts 500 20 ,ts 1000 20]
 
+-- Test the timing method for the top Down Algorithm where the simplification algorithm differ
 calResults2 :: IO()
 
 calResults2 = timeResults 20 methodsToPerform "Output/output2.csv"
     where
     ts = (\x y -> timeUsedPropertyTopDown 20 20 x y)
-    methodsToPerform = [ts aritProgram (checkProperty step) , ts aritProgram2 (checkProperty step) ,ts aritProgram3 (checkProperty step), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
+    methodsToPerform = [ts aritProgram (checkProperty normalStep) , ts aritProgram2 (checkProperty normalStep) ,ts aritProgram3 (checkProperty normalStep), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
 
+
+-- Test the timing method for the BottomUp Algorithm
 calResults3 :: IO()
 
 calResults3 = timeResults 20 methodsToPerform "Output/output3.csv"
     where
     ts = (\x y -> timeUsedPropertyBottomUp 3 x y)
-    methodsToPerform = [ts aritProgram (checkProperty step) , ts aritProgram2 (checkProperty step) ,ts aritProgram3 (checkProperty step), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
+    methodsToPerform = [ts aritProgram (checkProperty normalStep) , ts aritProgram2 (checkProperty normalStep) ,ts aritProgram3 (checkProperty normalStep), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
             
  
+-- The correct Method to calculate  the timing for the 4 used algorithms 
 calResultsFinal :: Int -> (Predicate -> Bool) -> IO()
 
 calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output/outputFinal.6."++ (show size) ++ ".csv")
@@ -293,6 +311,8 @@ calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output/output
     tsTopBacktrack = (\x y ->  timeUsedPropertyTopDownBacktrack  1000 size 0 x y)
     methodsToPerform = [tsNaive propCheck ,tsBottom aritProgram propCheck , tsTop aritProgram propCheck ,tsTopBacktrack aritProgram propCheck]
 
+
+--  Loops over the sizes for calculating the results
 calResultLoopSize:: Int->(Predicate -> Bool) -> IO()
 
 calResultLoopSize  (-1) propCheck = return ()
@@ -301,7 +321,9 @@ calResultLoopSize  max propCheck = do
     calResultLoopSize (max-1) propCheck
     calResultsFinal max propCheck
  
-            
+
+-- Calculates the percentage of the the number of naive algorithm tries that failed to find the 
+--   error on the total number of tries
 naivePercentage:: Int -> Int -> IO Float 
 
 naivePercentage size amount = do
@@ -309,7 +331,7 @@ naivePercentage size amount = do
     return (fromIntegral numberOfTrue/ fromIntegral amount)
             
             
-            
+-- helper of naivePercentage
 naivePercentageHelper:: Int -> Int -> IO Int 
 
 naivePercentageHelper size 0 = return 0
@@ -322,14 +344,16 @@ naivePercentageHelper size amount= do
         return (1 + number)
     else
         naivePercentageHelper size (amount-1)
-        
+   
+
+-- Write the percentage to the file   
 percentageWrite :: Int-> IO()
 
 percentageWrite max = do 
     result <-percentageWriteHelper max 0
     writeFile "Output/percentage.csv" result
     
-
+-- helper of percentageWrite
 percentageWriteHelper :: Int -> Int -> IO String
 
 percentageWriteHelper max current 
@@ -340,17 +364,17 @@ percentageWriteHelper max current
     |otherwise = return ""
 
             
-    
+-- test for bottomUp Algorithm 
 ariTest :: Scheme
 
 ariTest = semiNaiveBottomUp aritProgramUpgraded 2 Map.empty Map.empty
 
-
+-- test for bottomUp Algorithm
 ariTest2 :: Scheme
 
 ariTest2 = semiNaiveBottomUp aritProgram2 3 Map.empty Map.empty
 
-
+-- test for bottomUp Algorithm
 ariTest3 :: Scheme
 
 ariTest3 = semiNaiveBottomUp aritProgram3 3 Map.empty Map.empty -- Bij maar 2 keer geeft wel true terug omdat de formule nergens in gebruikt wordt

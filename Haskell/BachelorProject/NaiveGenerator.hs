@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
+-- generates a random Predicate with the given possible terms
 naiveGenerateElem :: Int -> IO Predicate
 
 naiveGenerateElem n = do
@@ -39,13 +40,16 @@ naiveGenerateElem n = do
     types = [nat,bool]
     nat = MkTerm "nat" 0 []
     bool = MkTerm "bool" 0 []
-    
+  
+-- Take a random element out of the list  
 takeRandom :: [a] -> IO a 
 
 takeRandom x = do
     list <-shuffle x
     return (head list)
     
+    
+-- generate a hasTypeTerm with given size    
 generateHasTypeTerm :: Int -> [Term] -> [([Term] -> Term)] -> IO Term   
 
 generateHasTypeTerm 0 const _ = do
@@ -69,6 +73,9 @@ generateHasTypeTerm n const terms = do
         current <- generateHasTypeTerm x const terms
         return (current:restTerms)
         
+        
+-- generates a term untill you get one that is valid to the precondition and 
+-- not the property and gives the result back        
 naiveTryUntillPropertyFalse :: Int -> Int -> (Predicate -> Bool) -> IO (Maybe Predicate)
 
 naiveTryUntillPropertyFalse 0 size propCheck = return Nothing -- geëindigt door maxTimes
@@ -84,7 +91,7 @@ naiveTryUntillPropertyFalse maxTimes size propCheck = do
         
         
         
-        
+-- Check if the given precondition is valid to the given predicate        
 precond :: Predicate -> Bool
 
 precond (MkPredicate "hasType" 2 [term,typeOfTerm]) =
@@ -92,7 +99,7 @@ precond (MkPredicate "hasType" 2 [term,typeOfTerm]) =
 
 precond _ = True    
     
-
+-- Returns True if term has the correct Type
 checkTerm :: Term -> Term -> Bool
 
 checkTerm (MkTerm "Zero" 0 []) (MkTerm "nat" 0 []) = True
