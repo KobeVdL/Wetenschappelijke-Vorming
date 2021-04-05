@@ -44,6 +44,39 @@ aritProgram = MkProgram (r1:r2:r3:facts)
     r3 =  Rule (hasType [ifThenElse [x,y,z],w]) [hasType [x,bool],hasType [y,w],hasType [z,w]]
     
     
+-- returns a tuple where the first part gives back all constants and literals for the first part of hasType
+--  the second part gives the constants and literals used for the types
+-- this only used for naive generation
+aritProgramUpgradedUsedTerm :: (([Term],[[Term]->Term]),([Term],[[Term]->Term]))
+
+aritProgramUpgradedUsedTerm = ((constantsProgram,litteralsProgram),(constantsTypes,literalsType))
+    where
+    zero = MkTerm "Zero" 0 []
+    true = MkTerm "True" 0 []
+    false = MkTerm "False" 0 []
+    emptyArray = MkTerm "[]" 0 []
+    letterA = MkTerm "'A'" 0 []
+    constantsProgram= [zero,true,false,emptyArray,letterA]
+    succ = MkTerm "succ" 1 --lijst geef je zelf mee
+    leq = MkTerm "leq" 2 
+    ifThenElse = MkTerm "ifThenElse" 3
+    add = MkTerm "add" 2
+    subtract = MkTerm "subtract" 2
+    multiply = MkTerm "multiply" 2
+    addToArray = MkTerm ":" 2
+    append = MkTerm "++" 2
+    and = MkTerm "and" 2
+    or = MkTerm "or" 2
+    not = MkTerm "not" 1
+    litteralsProgram = [succ,leq,ifThenElse,add,subtract,multiply,addToArray,append,and,or,not]
+    nat = MkTerm "nat" 0 []
+    bool = MkTerm "bool" 0 []
+    char = MkTerm "char" 0 []
+    constantsTypes = [nat,bool,char]
+    array = MkTerm "array" 1 
+    literalsType = [array]
+
+    
     
 -- more rules and actions included then in arit program (for example has now arrays, char , add, subtract,...
 aritProgramUpgraded :: Program
@@ -55,8 +88,6 @@ aritProgramUpgraded = MkProgram (booleanRules ++ arrayRules ++ numRules ++ facts
     false = MkTerm "False" 0 []
     emptyArray = MkTerm "[]" 0 []
     letterA = MkTerm "'A'" 0 []
-    succ = MkTerm "succ" 1 --lijst geef je zelf mee
-    leq = MkTerm "leq" 2 
     array = MkTerm "array" 1 
     nat = MkTerm "nat" 0 []
     bool = MkTerm "bool" 0 []
@@ -65,7 +96,6 @@ aritProgramUpgraded = MkProgram (booleanRules ++ arrayRules ++ numRules ++ facts
     y = Variable "Y"
     z = Variable "Z"
     w = Variable "W"
-    ifThenElse = MkTerm "ifThenElse" 3
     hasType = MkPredicate "hasType" 2 
     facts = createFacts [hasType [true,bool], hasType [false,bool],hasType [zero,nat], hasType [letterA,char], hasType [emptyArray,array [x]] ]
     numRules = createNumberRules 
@@ -106,10 +136,10 @@ createArrayRules = [r1,r2]
     z = Variable "Z"
     w = Variable "W"
     ifThenElse = MkTerm "ifThenElse" 3
-    addArray = MkTerm ":" 2
+    addToArray = MkTerm ":" 2
     append = MkTerm "++" 2
     hasType = MkPredicate "hasType" 2 
-    r1 = Rule (hasType [addArray [x,y],array [z]]) [hasType [x,z],hasType [y,array [z]]] 
+    r1 = Rule (hasType [addToArray [x,y],array [z]]) [hasType [x,z],hasType [y,array [z]]] 
     r2 = Rule (hasType [append [x,y],array [z]]) [hasType [x,array [z]],hasType [y,array [z]]] 
     
  

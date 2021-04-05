@@ -1,4 +1,4 @@
-
+{-# LANGUAGE FlexibleInstances #-}
 module BasicProlog where
       
 import Data.Set (Set)
@@ -68,8 +68,6 @@ data Program = MkProgram [Clause]
 type Binder = Map Term Term
 
 
-
-
 instance Eq Term  where 
     (==) (Variable x) (Variable y) = (x == y)
     x == y = ((name x)==(name y)) && termValuesEqual (values x) (values y)
@@ -105,6 +103,14 @@ instance Bindable Term where
         
     findVariables (Variable x) = Set.singleton (Variable x)
     findVariables (MkTerm nameTerm kard valueOfTerm) = findVariables valueOfTerm
+    
+
+instance Eq b => Eq ([Term] -> b) where
+    f == g = f []  == g []
+
+
+instance Ord b => Ord ([Term] -> b) where
+    f <= g = f [] <= g []
     
     
     

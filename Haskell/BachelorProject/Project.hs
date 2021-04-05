@@ -31,6 +31,7 @@ fastBottomUpProperty _ propCheck (-1) oldScheme differenceScheme = return Nothin
 fastBottomUpProperty program propCheck n oldScheme differenceScheme = 
     case prop of
         Nothing -> do
+            putStr ""
             fastBottomUpProperty program propCheck (n-1) newScheme newFoundElements
             where
             foundElements =  addListToCorrectScheme newPreds Map.empty
@@ -63,7 +64,7 @@ fireAllRulesProperty (MkProgram (firstClause:restOfClauses)) propCheck oldScheme
             (propNext,list) =fireAllRulesProperty (MkProgram restOfClauses) propCheck oldScheme differenceScheme
     where
     clausePred = findNewPred firstClause oldScheme differenceScheme
-    prop =find (propCheck) clausePred
+    prop =find (not . propCheck) clausePred
 
 
 

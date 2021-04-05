@@ -27,6 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
+
+-- TODO i think timing function is not optimal
+
+
+
 --Test de tijd met :set +s in ghci
 
 -- Tests the bottomUp program with the parentProgram
@@ -200,12 +205,12 @@ timeUsedPropertyBottomUp size program propCheck  = do
     method2 = fastBottomUpProperty program propCheck 2 Map.empty Map.empty
 
 -- Calculates the time needed to check the property of the program for a Naïve algorithm
-timeUsedPropertyNaive :: Int -> Int -> (Predicate -> Bool) -> IO Int    
+timeUsedPropertyNaive :: Int -> Int -> Program ->(Predicate -> Bool) -> IO Int    
     
-timeUsedPropertyNaive times size propCheck  = do 
+timeUsedPropertyNaive times size program propCheck  = do 
     timeUsedProperty method
     where
-    method = naiveTryUntillPropertyFalse times size propCheck
+    method = naiveTryUntillPropertyFalse times size propCheck program
     
     
 --Calculates the time needed to check the property of the program for a TopDownBackTrack algorithm
@@ -292,30 +297,43 @@ calResults2 = timeResults 20 methodsToPerform "Output/output2.csv"
 
 
 -- Test the timing method for the BottomUp Algorithm
-calResults3 :: IO()
+calResults3 :: Int -> (Predicate -> Bool) -> IO()
 
-calResults3 = timeResults 20 methodsToPerform "Output/output3.csv"
+calResults3 size propCheck = timeResults 1 methodsToPerform ("Output2/BottomUp/Step4/output.4."++ show size ++".csv")
     where
-    ts = (\x y -> timeUsedPropertyBottomUp 3 x y)
-    methodsToPerform = [ts aritProgram (checkProperty normalStep) , ts aritProgram2 (checkProperty normalStep) ,ts aritProgram3 (checkProperty normalStep), ts aritProgram (checkProperty step1), ts aritProgram (checkProperty step2),  ts aritProgram (checkProperty step3) ]
+    ts = (\x y -> timeUsedPropertyBottomUp size x y)
+    methodsToPerform = [ts aritProgramUpgraded (propCheck) ]
             
+   
+--  Loops over the sizes for calculating the results
+calResultLoopSize3:: Int -> (Predicate -> Bool) -> IO()
+
+calResultLoopSize3  (0) propCheck = return () -- terms of size 0 always fails 
+
+calResultLoopSize3  max propCheck = do
+    calResultLoopSize3 (max-1) propCheck
+    calResults3 max propCheck
+   
+
  
 -- The correct Method to calculate  the timing for the 4 used algorithms 
 calResultsFinal :: Int -> (Predicate -> Bool) -> IO()
 
-calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output/outputFinal.6."++ (show size) ++ ".csv")
+calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output2/Naive/outputFinal.3."++ (show size) ++ ".csv")
     where  
     tsNaive = (\x -> timeUsedPropertyNaive 10000 size x)
     tsBottom = (\x y -> timeUsedPropertyBottomUp size x y)
-    tsTop = (\x y -> timeUsedPropertyTopDown 1000 size x y)
-    tsTopBacktrack = (\x y ->  timeUsedPropertyTopDownBacktrack  1000 size 0 x y)
-    methodsToPerform = [tsNaive propCheck ,tsBottom aritProgram propCheck , tsTop aritProgram propCheck ,tsTopBacktrack aritProgram propCheck]
+    tsTop = (\x y -> timeUsedPropertyTopDown 10000 size x y)
+    tsTopBacktrack = (\x y ->  timeUsedPropertyTopDownBacktrack  10000 size 0 x y)
+    program = aritProgramUpgraded
+    methodsToPerform = [tsNaive program propCheck, tsBottom program propCheck, tsTop program propCheck ,tsTopBacktrack program propCheck]
+    
 
 
 --  Loops over the sizes for calculating the results
-calResultLoopSize:: Int->(Predicate -> Bool) -> IO()
+calResultLoopSize:: Int -> (Predicate -> Bool) -> IO()
 
-calResultLoopSize  (-1) propCheck = return ()
+calResultLoopSize  (0) propCheck = return () -- terms of size 0 always fails 
 
 calResultLoopSize  max propCheck = do
     calResultLoopSize (max-1) propCheck
@@ -324,42 +342,42 @@ calResultLoopSize  max propCheck = do
 
 -- Calculates the percentage of the the number of naive algorithm tries that failed to find the 
 --   error on the total number of tries
-naivePercentage:: Int -> Int -> IO Float 
+naivePercentage:: Int -> Int -> Program-> IO Float 
 
-naivePercentage size amount = do
-    numberOfTrue <- naivePercentageHelper size amount
+naivePercentage size amount program= do
+    numberOfTrue <- naivePercentageHelper size amount program
     return (fromIntegral numberOfTrue/ fromIntegral amount)
             
             
 -- helper of naivePercentage
-naivePercentageHelper:: Int -> Int -> IO Int 
+naivePercentageHelper:: Int -> Int -> Program-> IO Int 
 
-naivePercentageHelper size 0 = return 0
+naivePercentageHelper size 0 program = return 0
 
-naivePercentageHelper size amount= do
-    gen <- naiveGenerateElem size
-    let precond1 = precond gen
+naivePercentageHelper size amount program= do
+    gen <- naiveGenerateElem size program
+    let precond1 = precond gen program
     if precond1 then do
-        number<-naivePercentageHelper size (amount-1)
+        number<-naivePercentageHelper size (amount-1) program
         return (1 + number)
     else
-        naivePercentageHelper size (amount-1)
+        naivePercentageHelper size (amount-1) program
    
 
 -- Write the percentage to the file   
-percentageWrite :: Int-> IO()
+percentageWrite :: Int-> Program-> IO()
 
-percentageWrite max = do 
-    result <-percentageWriteHelper max 0
-    writeFile "Output/percentage.csv" result
+percentageWrite max program= do 
+    result <-percentageWriteHelper max 0 program
+    writeFile "Output2/percentage.csv" result
     
 -- helper of percentageWrite
-percentageWriteHelper :: Int -> Int -> IO String
+percentageWriteHelper :: Int -> Int -> Program -> IO String
 
-percentageWriteHelper max current 
+percentageWriteHelper max current program
     | current <= max =do
-        per <-naivePercentage current 10000
-        other <-  percentageWriteHelper max (current + 1)
+        per <-naivePercentage current 10000 program
+        other <-  percentageWriteHelper max (current + 1) program
         return (show current ++ ";" ++ show per ++ "\n" ++ other)
     |otherwise = return ""
 
