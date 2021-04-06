@@ -13,12 +13,15 @@ import Shrinking
 import BottomUp
 import BasicStep
 
+import Data.Time
+import System.TimeIt
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Debug.Trace
 import Control.Monad.Trans.Maybe
 import Data.Time.Clock.POSIX
+import Distribution.Simple.SrcDist
 
 
 
@@ -184,7 +187,7 @@ checkPropertyTest = do
 {- 
 Calculates the time needed to check the property of the program for a TopDown algorithm
 -}
-timeUsedPropertyTopDown ::Int -> Int -> Program -> (Predicate -> Bool) -> IO Int
+timeUsedPropertyTopDown ::Int -> Int -> Program -> (Predicate -> Bool) -> IO Double
     
 timeUsedPropertyTopDown times size program propCheck = do 
     timeUsedProperty method
@@ -193,7 +196,7 @@ timeUsedPropertyTopDown times size program propCheck = do
 
     
 --Calculates the time needed to check the property of the program for a BottomUp algorithm
-timeUsedPropertyBottomUp :: Int -> Program -> (Predicate -> Bool) -> IO Int
+timeUsedPropertyBottomUp :: Int -> Program -> (Predicate -> Bool) -> IO Double
     
 timeUsedPropertyBottomUp size program propCheck  = do
     --if (size > 2) then 
@@ -205,7 +208,7 @@ timeUsedPropertyBottomUp size program propCheck  = do
     method2 = fastBottomUpProperty program propCheck 2 Map.empty Map.empty
 
 -- Calculates the time needed to check the property of the program for a Naïve algorithm
-timeUsedPropertyNaive :: Int -> Int -> Program ->(Predicate -> Bool) -> IO Int    
+timeUsedPropertyNaive :: Int -> Int -> Program ->(Predicate -> Bool) -> IO Double   
     
 timeUsedPropertyNaive times size program propCheck  = do 
     timeUsedProperty method
@@ -214,7 +217,7 @@ timeUsedPropertyNaive times size program propCheck  = do
     
     
 --Calculates the time needed to check the property of the program for a TopDownBackTrack algorithm
-timeUsedPropertyTopDownBacktrack :: Int -> Int-> Int -> Program -> (Predicate -> Bool)-> IO Int 
+timeUsedPropertyTopDownBacktrack :: Int -> Int-> Int -> Program -> (Predicate -> Bool)-> IO Double 
  
 timeUsedPropertyTopDownBacktrack  times size forget program propCheck  = do 
     timeUsedProperty method
@@ -223,26 +226,19 @@ timeUsedPropertyTopDownBacktrack  times size forget program propCheck  = do
  
     
 -- calculates the time needed to find that the property is false    
-timeUsedProperty :: (IO (Maybe Predicate)) -> IO Int
+timeUsedProperty :: (IO (Maybe Predicate)) -> IO Double
     
 timeUsedProperty method =
     do 
-    time1 <- getPOSIXTime
-    maybeTerm <- method
-    time2 <- getPOSIXTime
+    (time,maybeTerm) <- timeItT method
+    --time1 <- getCurrentTime -- getPOSIXTime uncomment this if you are using windows
+    --maybeTerm <- method
+    --time2 <- getCurrentTime  -- getPOSIXTime uncomment this if you are using windows
     case maybeTerm of
-        Just term -> return (posixToInt (time2-time1)) -- heeft het juiste resultaat gevonden
-        Nothing -> return (maxBound) -- Denkt dat de property juist is dus zet tijd op oneindig
+        Just term -> return time --return (posixToInt (time2-time1)) -- heeft het juiste resultaat gevonden
+        Nothing -> return (1/0) -- returns infinity Denkt dat de property juist is dus zet tijd op oneindig
     
 
-
-
-
--- change the  posix value to an integer value
--- time in 10-e5 seconds
-posixToInt :: POSIXTime ->Int
-
-posixToInt time = floor(toRational(time * 10000)) 
     
     
 -- returns the result into a csvString where n is the number of times you try the test
@@ -319,7 +315,7 @@ calResultLoopSize3  max propCheck = do
 -- The correct Method to calculate  the timing for the 4 used algorithms 
 calResultsFinal :: Int -> (Predicate -> Bool) -> IO()
 
-calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output2/Naive/outputFinal.3."++ (show size) ++ ".csv")
+calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output2/Step4/outputFinal.4."++ (show size) ++ ".csv")
     where  
     tsNaive = (\x -> timeUsedPropertyNaive 10000 size x)
     tsBottom = (\x y -> timeUsedPropertyBottomUp size x y)
