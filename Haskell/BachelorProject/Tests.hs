@@ -315,7 +315,7 @@ calResultLoopSize3  max propCheck = do
 -- The correct Method to calculate  the timing for the 4 used algorithms 
 calResultsFinal :: Int -> (Predicate -> Bool) -> IO()
 
-calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output2/Step4/outputFinal.4."++ (show size) ++ ".csv")
+calResultsFinal size propCheck = timeResults 20 methodsToPerform ("Output2/Step1/outputFinal.1."++ (show size) ++ ".csv")
     where  
     tsNaive = (\x -> timeUsedPropertyNaive 10000 size x)
     tsBottom = (\x y -> timeUsedPropertyBottomUp size x y)
