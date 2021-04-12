@@ -9,7 +9,7 @@ import Data.Maybe (Maybe)
 import Data.List
 import Debug.Trace
 
--- TODO kan je dit niet blijven laten hollowen?
+-- Gebruik AC1 (arc consistency om termen blijven te verminderen tot als er geen verandering meer gebeurt
 
 
 import qualified Data.Set as Set
@@ -21,95 +21,160 @@ import qualified Data.Set as Set
     peel and hollow algoritmes
 -}
 
+data ShrinkInfo = MkShrinkInfo{
+                solutionTermsShrink :: [Set Term],
+                indexShrink :: Int,
+                getToPred :: (ShrinkInfo -> Term -> [Predicate])
+                }
+                
+data PredValidator = MkPredValidator{
+                        getPropertyCheck :: (Predicate -> Bool),
+                        getPrecond :: (Predicate -> Program -> Bool),
+                        getProgram :: Program
+                    }
+
+
+
 -- Removes the top layer of rules such that the property and precondition  not holds --TODO precondition cejcl
 -- It 'peels' of the rules used that are not directly needed
-shrinkAlgorithm:: Predicate ->(Predicate -> Bool) -> Program -> (Set Predicate)
+shrinkAlgorithm:: Predicate ->(Predicate -> Bool) ->(Predicate -> Program -> Bool) -> Program -> (Set Predicate)
 
-shrinkAlgorithm startPred propCheck program= Set.fromList(result)
+shrinkAlgorithm startPred@(MkPredicate name kardi arg) propCheck precond program= Set.fromList(map (MkPredicate name kardi) result) -- creates all tje preds
     where
-    shrinkedPred = shrinkTermPeel startPred propCheck program
-    result = concat (map (\x -> shrinkTermHollow x propCheck program) shrinkedPred)
+    predValid = MkPredValidator propCheck precond program
+    shrinkedPred = shrinkTermPeel startPred propCheck precond program
+    toPred = (\x y ->(map (MkPredicate name kardi) (constructTerms x y)))
+    result = concat (map (\x -> shrinkTermHollowStart x toPred predValid) shrinkedPred)
 
 -- perform a peel step in which the top term is removed and checked if the property  not holds
 -- this is done by using a rule to simplify the predicate and the body of the rule is checked apart each time
-shrinkTermPeel:: Predicate->(Predicate -> Bool) -> Program -> [Predicate]
+shrinkTermPeel:: Predicate->(Predicate -> Bool) -> (Predicate -> Program -> Bool) -> Program -> [Predicate]
 
-shrinkTermPeel startPred propCheck program
+shrinkTermPeel startPred propCheck precond program
     | predsNotValid==[] = [startPred]
-    | otherwise = foldr (\x acc -> shrinkTermPeel x propCheck program ++ acc)[] predsNotValid -- append the reduced preds
+    | otherwise = foldr (\x acc -> shrinkTermPeel x propCheck precond program ++ acc)[] predsNotValid -- append the reduced preds
     where
     reducedPreds = reducePred startPred (releaseProgram program)
-    predsNotValid = filter (\x-> not (propCheck x)) reducedPreds
+    predsNotValid = filter (\x-> precond x program && not(propCheck x)) reducedPreds
  
  
- 
+
+-- Term->Predicate \x-> MkPredicate "" 3 [MkTerm "X" 1 [x],y,z]
+-- arg (\var -> MkTerm "X" 2 [var,y])
+-- arg (\var -> MkTerm "X" 2 [x,var])
+-- eerst eerste variabele vereenvoudigen en deze dan als nieuwe variabele zetten, doe hetzelfde voor de volgende
+-- voor gemak begin met 1 variabele
+
+-- reduces a terms with the hollow algorithm
+
+
+
+
+filterCounterEx :: ShrinkInfo -> PredValidator -> [Term] -> [Term]
+
+filterCounterEx shrinkInfo predValid = filter (validCounterPred shrinkInfo predValid)
+
+
+
+
+
+hollowReduction :: ShrinkInfo -> PredValidator->  Term -> [Term]
+
+hollowReduction shrinkInfo  predValid termToReduce@(MkTerm name kardi arg)
+    | kardi == 0 = [termToReduce] -- if constant then not reducable anymore
+    | reducable /= [] = concat (map (hollowReduction shrinkInfo predValid) reducable) -- term is reducable, replace parent with one or more of its childs
+    | otherwise =  map (MkTerm name kardi) (shrinkTermHollow termToReduce newToPred predValid) -- term is not reducable
+    -- construct all possible maxReducedTerms of given term thats not reducable
+    where
+    reducable =filterCounterEx shrinkInfo predValid (values termToReduce)
+    toPred = getToPred shrinkInfo 
+    newToPred = expandToPred shrinkInfo termToReduce
+
+
+
+
+
 -- Hollow the given term by reducing the inner terms inside the outer term
 -- and checking each time if the precondition holds and the property not 
-shrinkTermHollow::  Predicate -> (Predicate -> Bool) -> Program -> [Predicate]
+shrinkTermHollow::  Term -> (ShrinkInfo ->Term -> [Predicate]) -> PredValidator -> [[Term]]
 
-shrinkTermHollow startPred@(MkPredicate name kard [term @(MkTerm nameTerm kardTerm listTerms),typeOfTerm]) propCheck program = hollowSolution startSol startWorkList 0 toPred propCheck  -- TODO voor alle programmas maken, gaat niet
+shrinkTermHollow term toPred predValid = hollowSolution shrinkInfo predValid startWorkList  -- TODO voor alle programmas maken, gaat niet
     where
     (startSol,startWorkList) = setUpHollow term
-    toPred = \x -> MkPredicate name kard [MkTerm nameTerm kardTerm x,typeOfTerm]
+    shrinkInfo = MkShrinkInfo startSol 0 toPred 
     
+-- Similar to shrinkTermHollow, only this time starts with a predicate and gives a list of predicates back    
+shrinkTermHollowStart :: Predicate -> (ShrinkInfo ->Term -> [Predicate]) -> PredValidator -> [[Term]]
+  
+shrinkTermHollowStart pred toPred predValid = (hollowSolution shrinkInfo predValid startWorkList)
+    where
+    (startSol,startWorkList) = setUpHollowPred pred
+    shrinkInfo = MkShrinkInfo startSol 0 toPred 
+
 
     
 -- construct all preds that are inside a term and that reduce the term
-hollowSolution :: [Set Term] -> [[Term]] -> Int -> ([Term] -> Predicate)-> (Predicate -> Bool) -> [Predicate]
+hollowSolution :: ShrinkInfo -> PredValidator ->  [[Term]] -> [[Term]]
 
-hollowSolution sol [] index toPred propCheck = map toPred (constuctValuesPred sol (-1) (Variable "this is not used"))
-
-hollowSolution sol (y:ys) index toPred propCheck 
-    | index >= length sol = map toPred (constuctValuesPred sol (-1) (Variable "this is not used"))
-    | otherwise = hollowSolution totalSol ys (index + 1) toPred propCheck
+-- all the work is done
+hollowSolution shrinkInfo predValid [] = (constuctValuesPredWithoutReplace sol )
     where
+    sol = solutionTermsShrink shrinkInfo
+
+hollowSolution shrinkInfo predValid (y:ys)
+    | index >= length sol = (constuctValuesPredWithoutReplace sol ) -- index should never be higher as the kardinality
+    | otherwise = hollowSolution (newShrinkInfo) predValid ys --if (replace != newSol) then -- solution changed so not possible to stop
+                   -- each
+                  --else
+                  --  ddd
+    --hollowSolution (newShrinkInfo) predValid ys
+    where
+    sol = solutionTermsShrink shrinkInfo
+    toPred = getToPred shrinkInfo
+    index = indexShrink shrinkInfo
     (first,(replace:last)) = splitAt index sol
-    newSol = maxReducedForCurrentIndex sol index toPred propCheck y  
+    newSol = maxReducedForCurrentIndex shrinkInfo predValid y  
     totalSol = first ++ (newSol:last)
+    newShrinkInfo = MkShrinkInfo totalSol (index+1) toPred 
 
 
-    
 
--- for given index calculates a new [set Term] with solutions(including previous found ) that are max reduced and still invalid for precondition
-maxReducedForCurrentIndex ::  [Set Term]-> Int -> ([Term] -> Predicate) -> (Predicate -> Bool) -> [Term] -> Set Term
+-- for given index calculates a new [set Term] with solutions(including previous found ) that are max reduced and still valid for precondition and invalid for property
+-- TODO deze functie is nog verkeerd
+maxReducedForCurrentIndex ::  ShrinkInfo-> PredValidator -> [Term] -> Set Term
 
-maxReducedForCurrentIndex currentSol index toPred propCheck [] = Set.empty
+maxReducedForCurrentIndex shrinkInfo predValid [] = Set.empty
 
-maxReducedForCurrentIndex currentSol index toPred propCheck (x:xs) 
-    | stepResults == [] = Set.insert x (maxReducedForCurrentIndex currentSol index toPred propCheck xs) -- add the term to the solutions
-    | otherwise = maxReducedForCurrentIndex currentSol index toPred propCheck (stepResults ++ xs) -- add the terms to the list bec they can still be reduced 
+maxReducedForCurrentIndex shrinkInfo predValid (x:xs)= -- go over each term of valid solutions and add them to the set
+    Set.union (Set.fromList stepResults) (maxReducedForCurrentIndex shrinkInfo predValid xs)
     where
-    stepResults = hollowStep currentSol index toPred propCheck x
+    stepResults = hollowReduction shrinkInfo predValid x --trace ("results shrinking are" ++ (show (hollowStep currentSol index toPred propCheck precond program x))) (hollowStep currentSol index toPred propCheck precond program x)
 
 
---performs one step in the hollow algorithm returns an empty list if none such terms exist
-hollowStep :: [Set Term] -> Int -> ([Term] -> Predicate) -> (Predicate -> Bool) -> Term -> [Term] --TODO geen idee 
 
-hollowStep currentSol index toPred propCheck stepTerm = filter (validCounterPred currentSol index toPred propCheck) reduceTerms -- filters out the terms that still form counter examples.
-    where
-    reduceTerms = hollowReduction stepTerm
-    
-    
 -- checks if given term still is a counterexample
-validCounterPred:: [Set Term] -> Int -> ([Term] -> Predicate) -> (Predicate -> Bool) -> Term -> Bool
+validCounterPred:: ShrinkInfo -> PredValidator -> Term -> Bool
 
-validCounterPred currentSol index toPred propCheck termToCheck = case found of
+validCounterPred shrinkInfo predValid termToCheck = case found of
         Nothing -> True
         Just x -> False
     where
-    possibleValuesPred = constuctValuesPred currentSol index termToCheck
-    found = find (propCheck . toPred) possibleValuesPred
-        
+    toPred = getToPred shrinkInfo
+    propCheck = getPropertyCheck predValid
+    precond = getPrecond predValid
+    program = getProgram predValid
+    possibleValuesPred = toPred shrinkInfo termToCheck -- construct all possible predicates with given term
+    found = find ((\x-> not (precond x program) ||(propCheck x))) possibleValuesPred
 
--- put everyTerm in the first list in front of each other element
--- index gives the index where possible solution should be replaced with given term
-constuctValuesPred :: [Set Term] -> Int -> Term -> [[Term]]
 
-constuctValuesPred [] index givenTerm = [[]] -- TODO fout als map leeg is wordt dit niet uitgevoerd
 
-constuctValuesPred (x:xs) 0 givenTerm = map (givenTerm:) (constuctValuesPred xs (-1) givenTerm)
+-- same as construct valuesPred, only do not replace a term at index n
+constuctValuesPredWithoutReplace :: [Set Term] -> [[Term]]
 
-constuctValuesPred (x:xs) index givenTerm =  map (\z-> concat (map (z:) (constuctValuesPred xs index givenTerm))) (Set.toList x)
+constuctValuesPredWithoutReplace [] = [[]]
+
+constuctValuesPredWithoutReplace (x:xs) = map (\z-> concat (map (z:) (constuctValuesPredWithoutReplace xs))) (Set.toList x)
+
 
 
 --sets up the terms for the hollow algorithm
@@ -119,38 +184,43 @@ setUpHollow term = ( map (\x->Set.singleton x ) (values term) , map (\x->[x]) (v
 -- oplossing als terug voldaan is aan property of reductie is leeg voeg dan vorige term toe aan oplossingen
 -- en voeg niet toe aan de lijst.
     
+-- similar with setUpHollow, only starts with a pred instead    
+setUpHollowPred :: Predicate -> ([Set Term] ,[[Term]])
+    
+setUpHollowPred pred = ( map (\x->Set.singleton x ) (valuesOfPred pred) , map (\x->[x]) (valuesOfPred pred))     
 
-        
+-- Function used to create the function toPred, needs shrinkInfo and a list of possible to use terms
+-- returns a list of all predicates that can be made with it
+-- increases everytime you call this function
+expandToPred :: ShrinkInfo -> Term -> (ShrinkInfo -> Term -> [Predicate])
 
--- Term->Predicate \x-> MkPredicate "" 3 [MkTerm "X" 1 [x],y,z]
--- arg (\var -> MkTerm "X" 2 [var,y])
--- arg (\var -> MkTerm "X" 2 [x,var])
--- eerst eerste variabele vereenvoudigen en deze dan als nieuwe variabele zetten, doe hetzelfde voor de volgende
--- voor gemak begin met 1 variabele
-
--- reduces a terms with the hollow algorithm
-hollowReduction :: Term->[Term]
-
-hollowReduction (MkTerm "Zero" 0 [])  = []
-
-hollowReduction (MkTerm "True" 0 [])  = [] 
-
-hollowReduction (MkTerm "False" 0 [])  = [] 
-
-hollowReduction (MkTerm "succ" 1 subTerm)  = subTerm
-
-hollowReduction (MkTerm "ifThenElse" 3 [x,y,z]) = [y,z]
-
-hollowReduction (MkTerm "leq" 2 [x,y] ) 
-    | hollowX /= [] = map (\z -> MkTerm "leq" 2 [z,y] ) hollowX
-    | hollowY /= [] = map (\z -> MkTerm "leq" 2 [y,z] ) hollowY
-    |otherwise = [] --No valid reductions
-    --(MkTerm "leq" 2 [x,y] )
+expandToPred shrinkInfo term@(MkTerm name kardi arg) = (\x y -> concat (map (toPred shrinkInfo) (map (MkTerm name kardi) (constructTerms x y))))-- toPred possibleValuesPred
     where
-    hollowX = hollowReduction x
-    hollowY = hollowReduction y
+    currentSol = solutionTermsShrink shrinkInfo
+    index = indexShrink shrinkInfo
+    toPred = getToPred shrinkInfo
 
-hollowReduction _ =[]
+
+
+constructTerms :: ShrinkInfo -> Term -> [[Term]]
+
+constructTerms shrinkInfo = constuctValuesPred sol index
+    where
+    sol = solutionTermsShrink shrinkInfo
+    index = indexShrink shrinkInfo
+
+
+
+-- put everyTerm in the first list in front of each other element
+-- index gives the index where possible solution should be replaced with given term
+constuctValuesPred :: [Set Term] -> Int -> Term -> [[Term]]
+
+constuctValuesPred [] index givenTerm = [[]] -- TODO fout als map leeg is wordt dit niet uitgevoerd
+
+constuctValuesPred (x:xs) 0 givenTerm =   map (givenTerm:) (constuctValuesPred xs (-1) givenTerm)
+
+constuctValuesPred (x:xs) index givenTerm =  map (\z-> concat (map (z:) (constuctValuesPred xs (index-1) givenTerm))) (Set.toList x)
+
 
  
 {- for each term in property, check which type the term has (for each rule in program
