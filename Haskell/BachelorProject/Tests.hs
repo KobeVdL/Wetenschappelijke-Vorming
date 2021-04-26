@@ -162,13 +162,15 @@ topDownBacktrackAlgorithmTest = do
 -- Tests the shrinking algorithm
 shrinkingTest:: IO() 
 
-shrinkingTest = do -- FOUT mss in property Just hasType(succ(succ(succ(succ(Zero)))),nat) is niet aan property voldaan
-        maybeTerm <- topDownPropertyChecking 10 100 (checkProperty step3) aritProgram
+shrinkingTest = do 
+        maybeTerm <- topDownPropertyChecking 5 10000 (checkProperty step4) aritProgramUpgraded
         putStrLn (show maybeTerm)
         let shrinkedTerm = do
             term <- maybeTerm
-            Just (shrinkAlgorithm term (checkProperty step3) aritProgram)
+            Just (shrinkAlgorithm term (checkProperty step4) precond aritProgramUpgraded)
+        putStrLn ""
         putStrLn (show shrinkedTerm)
+            
             
             
 -- tests the checkProperty method        
@@ -335,6 +337,27 @@ calResultLoopSize  max propCheck = do
     calResultLoopSize (max-1) propCheck
     calResultsFinal max propCheck
  
+ 
+-- function that calculates the difference between the two by calculating the average of 1000 tests for each
+-- for each size untill the given size is reached 
+calDifferenceTDAndTDB:: Int -> (Predicate -> Bool) -> IO()
+
+calDifferenceTDAndTDB size propCheck = timeResults tries methodsToPerform ("Output4/resultsStep5Size"++ (show size) ++ ".csv")
+    where
+    tries = 1000
+    tsTop = (\x y -> timeUsedPropertyTopDown 10000 size x y)
+    tsTopBacktrack = (\x y n ->  timeUsedPropertyTopDownBacktrack  10000 size n x y)
+    program = aritProgramUpgraded
+    methodsToPerform = [tsTop program propCheck,tsTopBacktrack program propCheck 0]-- : map (tsTopBacktrack program propCheck) [0..(size-1)]
+
+--  Loops over the sizes for calculating the results
+calTDvsTDBLoopSize:: Int -> (Predicate -> Bool) -> IO()
+
+calTDvsTDBLoopSize  (3) propCheck = return () -- terms of size 0 always fails 
+
+calTDvsTDBLoopSize  max propCheck = do
+    calTDvsTDBLoopSize (max-1) propCheck
+    calDifferenceTDAndTDB max propCheck
 
 -- Calculates the percentage of the the number of naive algorithm tries that failed to find the 
 --   error on the total number of tries

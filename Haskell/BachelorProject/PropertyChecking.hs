@@ -64,3 +64,13 @@ step4 :: Term -> Maybe Term
 step4 (MkTerm ":" 2 [MkTerm "succ" 1 [MkTerm "Zero" 0 []],MkTerm "ifThenElse" 3 [MkTerm "True" 0 [],x,y]]) = Just (MkTerm "'A'" 0 []) -- changes array[nat] into number and is incorrect
 
 step4 term  = step term step4
+
+
+--This looks very simular as  step4 only has this method no variables in its test
+
+step5 :: Term -> Maybe Term
+
+step5 (MkTerm ":" 2 [MkTerm "succ" 1 [MkTerm "Zero" 0 []],MkTerm "ifThenElse" 3 [MkTerm "True" 0 [],MkTerm "[]" 0 [],MkTerm "[]" 0 []]]) = Just (MkTerm "'A'" 0 []) -- changes array[nat] into number and is incorrect
+
+
+step5 term  = step term step5
